@@ -1,2 +1,2 @@
 # ITPM-PROJECT
-Smart Volunteer Matching and Performance Feedback System
+Volunteer-Based Academic Support & Smart Matching Platform
