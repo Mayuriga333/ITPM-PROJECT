@@ -4,6 +4,7 @@ import API from "../api/axios";
 import { useAuth } from "../context/AuthContext";
 import StarRating from "../components/StarRating";
 import { toast } from "react-toastify";
+import adminModerationImage from "../assets/admin-moderation.svg";
 
 const AdminModeration = () => {
   const { user } = useAuth();
@@ -166,32 +167,39 @@ const AdminModeration = () => {
 
   return (
     <div className="dashboard admin-moderation">
-      <h1>Review Moderation</h1>
-      <p style={{ color: "var(--gray-500)", marginBottom: 32 }}>
-        Monitor, approve, and manage student reviews
-      </p>
+      <div className="moderation-hero">
+        <div className="moderation-hero-content">
+          <h1>Review Moderation</h1>
+          <p>
+            Monitor, approve, and manage student reviews
+          </p>
+        </div>
+        <div className="moderation-hero-visual">
+          <img src={adminModerationImage} alt="Admin moderation analytics illustration" />
+        </div>
+      </div>
 
       {/* Stats Cards */}
       {stats && (
-        <div className="dashboard-stats" style={{ marginBottom: 32 }}>
+        <div className="dashboard-stats moderation-stats-grid">
           <div className="stat-card card">
             <div className="stat-number">{stats.totalReviews}</div>
             <div className="stat-label">Total Reviews</div>
           </div>
           <div className="stat-card card">
-            <div className="stat-number" style={{ color: "var(--success)" }}>
+            <div className="stat-number stat-success">
               {stats.approved}
             </div>
             <div className="stat-label">Approved</div>
           </div>
           <div className="stat-card card">
-            <div className="stat-number" style={{ color: "var(--warning)" }}>
+            <div className="stat-number stat-warning">
               {stats.flagged}
             </div>
             <div className="stat-label">Flagged</div>
           </div>
           <div className="stat-card card">
-            <div className="stat-number" style={{ color: "var(--danger)" }}>
+            <div className="stat-number stat-danger">
               {stats.rejected}
             </div>
             <div className="stat-label">Rejected</div>
@@ -201,12 +209,12 @@ const AdminModeration = () => {
 
       {/* Needs Action Banner */}
       {stats && stats.needsAction > 0 && (
-        <div className="moderation-alert card" style={{ marginBottom: 24 }}>
+        <div className="moderation-alert card moderation-gap-bottom-md">
           <div className="alert-content">
             <span className="alert-icon">⚠️</span>
             <div>
               <strong>{stats.needsAction} review{stats.needsAction !== 1 ? "s" : ""} need{stats.needsAction === 1 ? "s" : ""} attention</strong>
-              <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--gray-500)" }}>
+              <p className="moderation-alert-text">
                 Flagged or pending reviews require admin action
               </p>
             </div>
@@ -221,7 +229,7 @@ const AdminModeration = () => {
       )}
 
       {/* Tabs */}
-      <div className="moderation-tabs" style={{ marginBottom: 24 }}>
+      <div className="moderation-tabs moderation-gap-bottom-md">
         <button
           className={`mod-tab ${activeTab === "flagged" ? "active" : ""}`}
           onClick={() => { setActiveTab("flagged"); setCurrentPage(1); }}
@@ -247,7 +255,7 @@ const AdminModeration = () => {
 
       {/* Content Checker Tab */}
       {activeTab === "checker" && (
-        <div className="card" style={{ marginBottom: 24 }}>
+        <div className="card moderation-checker" style={{ marginBottom: 24 }}>
           <h3 style={{ marginBottom: 16 }}>Content Moderation Tester</h3>
           <p style={{ fontSize: "0.85rem", color: "var(--gray-500)", marginBottom: 16 }}>
             Test how the moderation system analyzes review text
@@ -279,9 +287,9 @@ const AdminModeration = () => {
           </button>
 
           {checkResult && (
-            <div className="check-result" style={{ marginTop: 20 }}>
+            <div className="check-result moderation-check-result" style={{ marginTop: 20 }}>
               <div
-                className="card"
+                className="card moderation-check-result-card"
                 style={{
                   background: checkResult.flagged ? "#EF444415" : "#10B98115",
                   border: `1px solid ${checkResult.flagged ? "#EF444430" : "#10B98130"}`,
@@ -403,7 +411,7 @@ const AdminModeration = () => {
               </div>
             </div>
           ) : reviews.length === 0 ? (
-            <div className="empty-state card" style={{ padding: 48, textAlign: "center" }}>
+            <div className="empty-state card moderation-empty" style={{ padding: 48, textAlign: "center" }}>
               <span style={{ fontSize: "3rem" }}>
                 {activeTab === "flagged" ? "🎉" : "📭"}
               </span>
@@ -448,7 +456,7 @@ const AdminModeration = () => {
                         onChange={() => toggleSelectReview(review._id)}
                       />
                       <div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                        <div className="mod-review-meta-row" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                           <StarRating rating={review.rating} size={14} showNumber={false} />
                           <span className={`badge ${getStatusBadge(review.status)}`}>
                             {review.status}

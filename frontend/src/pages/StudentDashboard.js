@@ -4,6 +4,7 @@ import API from "../api/axios";
 import { useAuth } from "../context/AuthContext";
 import ReviewForm from "../components/ReviewForm";
 import { toast } from "react-toastify";
+import studentDashboardImage from "../assets/student-dashboard.svg";
 
 const StudentDashboard = () => {
   const { user } = useAuth();
@@ -17,7 +18,7 @@ const StudentDashboard = () => {
       return;
     }
     fetchSessions();
-  }, [user]);
+  }, [user, navigate]);
 
   const fetchSessions = async () => {
     try {
@@ -70,10 +71,25 @@ const StudentDashboard = () => {
 
   return (
     <div className="dashboard">
-      <h1>Student Dashboard</h1>
-      <p style={{ color: "var(--gray-500)", marginBottom: 32 }}>
-        Welcome back, {user?.name}! Here's your tutoring overview.
-      </p>
+      <div className="dashboard-header-card student-dashboard-hero card">
+        <div className="student-dashboard-hero-content">
+          <h1>Student Dashboard</h1>
+          <p className="student-dashboard-intro">
+            Welcome back, {user?.name}! Here's your tutoring overview.
+          </p>
+          <div className="student-actions-row">
+            <Link to="/find-volunteer" className="btn btn-primary">
+              Find a Volunteer
+            </Link>
+            <Link to="/volunteers" className="btn btn-outline">
+              Browse All Volunteers
+            </Link>
+          </div>
+        </div>
+        <div className="student-dashboard-hero-visual">
+          <img src={studentDashboardImage} alt="Student dashboard analytics illustration" />
+        </div>
+      </div>
 
       {/* Stats */}
       <div className="dashboard-stats">
@@ -95,25 +111,16 @@ const StudentDashboard = () => {
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: 12, marginBottom: 32 }}>
-        <Link to="/find-volunteer" className="btn btn-primary">
-          Find a Volunteer
-        </Link>
-        <Link to="/volunteers" className="btn btn-outline">
-          Browse All Volunteers
-        </Link>
-      </div>
-
       {/* Unreviewed Sessions */}
       {unreviewedSessions.length > 0 && (
         <>
-          <h3 style={{ marginBottom: 16 }}>⭐ Pending Reviews</h3>
+          <h3 className="review-section-title dashboard-section-title">Pending Reviews</h3>
           {unreviewedSessions.map((session) => (
-            <div key={session._id} className="card" style={{ marginBottom: 16, background: "var(--primary-50)" }}>
-              <div style={{ marginBottom: 12 }}>
+            <div key={session._id} className="card student-review-card student-review-item">
+              <div className="student-review-card-head dashboard-row-gap">
                 <strong>{session.subject}</strong> with{" "}
                 {session.volunteer?.user?.name || "Volunteer"}
-                <span style={{ color: "var(--gray-400)", marginLeft: 8, fontSize: "0.85rem" }}>
+                <span className="student-review-date student-review-date-space">
                   {new Date(session.scheduledDate).toLocaleDateString()}
                 </span>
               </div>
@@ -127,13 +134,13 @@ const StudentDashboard = () => {
       )}
 
       {/* All Sessions */}
-      <h3 style={{ marginBottom: 16, marginTop: 32 }}>All Sessions</h3>
+      <h3 className="dashboard-section-title dashboard-section-title-spaced">All Sessions</h3>
       <div className="sessions-list">
         {sessions.length === 0 ? (
           <div className="empty-state">
             <h3>No sessions yet</h3>
             <p>
-              <Link to="/find-volunteer" style={{ color: "var(--primary)" }}>
+              <Link to="/find-volunteer" className="dashboard-inline-link">
                 Find a volunteer
               </Link>{" "}
               to get started!

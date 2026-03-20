@@ -2,6 +2,7 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { FiSearch, FiStar, FiUsers, FiAward } from "react-icons/fi";
+import heroLearningImage from "../assets/hero-learning.svg";
 
 const Home = () => {
   const { user } = useAuth();
@@ -10,40 +11,45 @@ const Home = () => {
     <>
       {/* Hero Section */}
       <section className="hero">
-        <div className="container">
-          <h1>
-            Learn Together,
-            <br />
-            <span>Grow Together</span>
-          </h1>
-          <p>
-            Connect with peer volunteers for academic support. Master your
-            subjects with personalized, 1-on-1 tutoring sessions—completely
-            free.
-          </p>
-          <div className="hero-buttons">
-            {user ? (
-              <>
-                <Link
-                  to={user.role === "student" ? "/find-volunteer" : "/dashboard/volunteer"}
-                  className="btn btn-primary btn-lg"
-                >
-                  {user.role === "student" ? "Find a Volunteer →" : "Go to Dashboard →"}
-                </Link>
-                <Link to="/volunteers" className="btn btn-outline btn-lg">
-                  Browse Volunteers
-                </Link>
-              </>
-            ) : (
-              <>
-                <Link to="/register" className="btn btn-primary btn-lg">
-                  Register as Student →
-                </Link>
-                <Link to="/register?role=volunteer" className="btn btn-outline btn-lg">
-                  Become a Volunteer
-                </Link>
-              </>
-            )}
+        <div className="container hero-layout">
+          <div className="hero-content">
+            <h1>
+              Learn Together,
+              <br />
+              <span>Grow Together</span>
+            </h1>
+            <p>
+              Connect with peer volunteers for academic support. Master your
+              subjects with personalized, 1-on-1 tutoring sessions—completely
+              free.
+            </p>
+            <div className="hero-buttons">
+              {user ? (
+                <>
+                  <Link
+                    to={user.role === "student" ? "/find-volunteer" : "/dashboard/volunteer"}
+                    className="btn btn-primary btn-lg"
+                  >
+                    {user.role === "student" ? "Find a Volunteer →" : "Go to Dashboard →"}
+                  </Link>
+                  <Link to="/volunteers" className="btn btn-outline btn-lg">
+                    Browse Volunteers
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link to="/register" className="btn btn-primary btn-lg">
+                    Register as Student →
+                  </Link>
+                  <Link to="/register?role=volunteer" className="btn btn-outline btn-lg">
+                    Become a Volunteer
+                  </Link>
+                </>
+              )}
+            </div>
+          </div>
+          <div className="hero-visual">
+            <img src={heroLearningImage} alt="Learning dashboard illustration" />
           </div>
         </div>
       </section>
@@ -105,10 +111,10 @@ const Home = () => {
       </section>
 
       {/* CTA Section */}
-      <section style={{ padding: "80px 24px", textAlign: "center" }}>
+      <section className="home-cta">
         <div className="container">
-          <h2 style={{ marginBottom: 16 }}>Ready to Start Learning?</h2>
-          <p style={{ color: "var(--gray-500)", marginBottom: 32, maxWidth: 500, margin: "0 auto 32px" }}>
+          <h2>Ready to Start Learning?</h2>
+          <p>
             Join thousands of students who are already benefiting from free peer tutoring.
           </p>
           <Link to="/register" className="btn btn-primary btn-lg">

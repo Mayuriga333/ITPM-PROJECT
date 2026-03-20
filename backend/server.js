@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
+const path = require("path");
 const connectDB = require("./config/db");
 
 // Load env vars
@@ -14,6 +15,7 @@ const app = express();
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // Routes
 app.use("/api/auth", require("./routes/auth"));
@@ -30,6 +32,15 @@ app.get("/api/health", (req, res) => {
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
+  if (err.name === "MulterError") {
+    if (err.code === "LIMIT_FILE_SIZE") {
+      return res.status(400).json({ message: "Attachment must be 5MB or less" });
+    }
+    return res.status(400).json({ message: err.message || "File upload failed" });
+  }
+  if (err.message && err.message.includes("Only .jpg, .png, and .pdf")) {
+    return res.status(400).json({ message: err.message });
+  }
   res.status(500).json({ message: "Something went wrong!" });
 });
 

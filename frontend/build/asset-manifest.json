@@ -1,0 +1,17 @@
+{
+  "files": {
+    "main.css": "/static/css/main.1c189231.css",
+    "main.js": "/static/js/main.d69597e4.js",
+    "static/media/hero-learning.svg": "/static/media/hero-learning.7e04b3ed726460e1250a916b3cb92309.svg",
+    "static/media/admin-moderation.svg": "/static/media/admin-moderation.f14d93314415549b4f8f6c1293987844.svg",
+    "static/media/student-dashboard.svg": "/static/media/student-dashboard.d170c3e8763a5f0bcd84e3524c861549.svg",
+    "static/media/smart-matching.svg": "/static/media/smart-matching.b6ed6f4aa2d3dd2f0847fd7d67e609b4.svg",
+    "index.html": "/index.html",
+    "main.1c189231.css.map": "/static/css/main.1c189231.css.map",
+    "main.d69597e4.js.map": "/static/js/main.d69597e4.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.1c189231.css",
+    "static/js/main.d69597e4.js"
+  ]
+}

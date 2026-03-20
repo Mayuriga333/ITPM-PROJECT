@@ -4,6 +4,37 @@ const Session = require("../models/Session");
 const { detectInappropriateContent } = require("../middleware/reviewModeration");
 const { recalculateReputation } = require("../utils/reputationCalculator");
 
+const TOPIC_REGEX = /^[a-zA-Z0-9\s.,!?\-_'"():;/&]+$/;
+const SAFE_TEXT_REGEX = /^[a-zA-Z0-9\s.,!?\-_'"():;/&\n\r]*$/;
+const VALID_TAGS = ["positive", "neutral", "needs_improvement"];
+const VALID_EXPERIENCE_TYPES = ["practice", "review", "new_learning"];
+
+function parseBooleanExplicit(value) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["true", "yes", "1"].includes(normalized)) return true;
+    if (["false", "no", "0"].includes(normalized)) return false;
+  }
+  return null;
+}
+
+function parseTags(value) {
+  if (Array.isArray(value)) return value;
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) return parsed;
+    } catch (e) {
+      return value
+        .split(",")
+        .map((v) => v.trim())
+        .filter(Boolean);
+    }
+  }
+  return [];
+}
+
 // ============================
 // Helper: Update volunteer stats
 // ============================
@@ -59,7 +90,97 @@ async function updateVolunteerStats(volunteerId, rating, action) {
 // @route   POST /api/reviews
 exports.createReview = async (req, res) => {
   try {
-    const { sessionId, rating, reviewText, isAnonymous } = req.body;
+    const {
+      sessionId,
+      rating,
+      reviewText,
+      isAnonymous,
+      topicStudied,
+      followUpMatchAgain,
+      feedbackTags,
+      sessionDate,
+      experienceType,
+      recommendation,
+    } = req.body;
+
+    // Validate topic/subject studied
+    const normalizedTopic = (topicStudied || "").trim();
+    if (!normalizedTopic) {
+      return res.status(400).json({ message: "Topic/Subject studied is required" });
+    }
+    if (normalizedTopic.length < 3 || normalizedTopic.length > 200) {
+      return res.status(400).json({ message: "Topic/Subject studied must be 3-200 characters" });
+    }
+    if (!TOPIC_REGEX.test(normalizedTopic)) {
+      return res.status(400).json({
+        message: "Topic/Subject studied contains invalid characters",
+      });
+    }
+
+    // Validate follow-up selection (must be explicit yes/no)
+    const normalizedFollowUp = parseBooleanExplicit(followUpMatchAgain);
+    if (normalizedFollowUp === null) {
+      return res.status(400).json({
+        message: "Follow-up action is required. Please select Yes or No.",
+      });
+    }
+
+    // Validate tags
+    const normalizedTags = parseTags(feedbackTags);
+    if (!normalizedTags.length) {
+      return res.status(400).json({ message: "At least one feedback tag is required" });
+    }
+    if (normalizedTags.length > 3) {
+      return res.status(400).json({ message: "You can select a maximum of 3 feedback tags" });
+    }
+    const hasInvalidTag = normalizedTags.some((tag) => !VALID_TAGS.includes(tag));
+    if (hasInvalidTag) {
+      return res.status(400).json({
+        message: "Invalid feedback tag selected. Allowed: Positive, Neutral, Needs Improvement",
+      });
+    }
+
+    // Validate session date
+    if (!sessionDate) {
+      return res.status(400).json({ message: "Session date is required" });
+    }
+    const parsedSessionDate = new Date(sessionDate);
+    if (Number.isNaN(parsedSessionDate.getTime())) {
+      return res.status(400).json({ message: "Session date format is invalid" });
+    }
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    if (parsedSessionDate > today) {
+      return res.status(400).json({ message: "Session date cannot be in the future" });
+    }
+    const oldestAllowed = new Date();
+    oldestAllowed.setFullYear(oldestAllowed.getFullYear() - 1);
+    oldestAllowed.setHours(0, 0, 0, 0);
+    if (parsedSessionDate < oldestAllowed) {
+      return res.status(400).json({ message: "Session date cannot be older than 1 year" });
+    }
+
+    // Validate experience type
+    if (!experienceType || !VALID_EXPERIENCE_TYPES.includes(experienceType)) {
+      return res.status(400).json({
+        message: "Experience type is invalid. Allowed: Practice, Review, New Learning",
+      });
+    }
+
+    // Validate recommendation
+    const normalizedRecommendation = (recommendation || "").trim();
+    if (normalizedRecommendation.length > 500) {
+      return res.status(400).json({ message: "Recommendation cannot exceed 500 characters" });
+    }
+    if (normalizedRecommendation && !SAFE_TEXT_REGEX.test(normalizedRecommendation)) {
+      return res.status(400).json({ message: "Recommendation contains unsafe characters" });
+    }
+
+    // Validate review text safety if provided
+    const normalizedReviewText = (reviewText || "").trim();
+    if (normalizedReviewText && !SAFE_TEXT_REGEX.test(normalizedReviewText)) {
+      return res.status(400).json({ message: "Review text contains unsafe characters" });
+    }
 
     // Validate rating
     if (!rating || rating < 1 || rating > 5) {
@@ -110,8 +231,8 @@ exports.createReview = async (req, res) => {
     let moderationScore = 0;
     let moderationSeverity = null;
 
-    if (reviewText) {
-      const modResult = detectInappropriateContent(reviewText, rating);
+    if (normalizedReviewText) {
+      const modResult = detectInappropriateContent(normalizedReviewText, rating);
       moderationScore = modResult.score;
       moderationSeverity = modResult.severity;
 
@@ -124,12 +245,33 @@ exports.createReview = async (req, res) => {
       }
     }
 
+    const attachment = req.file
+      ? {
+          fileName: req.file.originalname,
+          fileUrl: `/uploads/reviews/${req.file.filename}`,
+          mimeType: req.file.mimetype,
+          size: req.file.size,
+        }
+      : {
+          fileName: "",
+          fileUrl: "",
+          mimeType: "",
+          size: 0,
+        };
+
     const review = await Review.create({
       session: sessionId,
       student: req.user._id,
       volunteer: volId,
       rating,
-      reviewText: reviewText || "",
+      reviewText: normalizedReviewText,
+      topicStudied: normalizedTopic,
+      followUpMatchAgain: normalizedFollowUp,
+      feedbackTags: normalizedTags,
+      sessionDate: parsedSessionDate,
+      experienceType,
+      attachment,
+      recommendation: normalizedRecommendation,
       subject: session.subject,
       isAnonymous: isAnonymous || false,
       status: reviewStatus,

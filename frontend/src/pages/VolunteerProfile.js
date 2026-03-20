@@ -311,11 +311,11 @@ const VolunteerProfile = () => {
 
       {/* Unreviewed Sessions */}
       {sessions.length > 0 && (
-        <div className="card" style={{ marginBottom: 24, background: "var(--primary-50)" }}>
-          <h3 style={{ marginBottom: 16 }}>Leave a Review</h3>
+        <div className="card profile-review-card" style={{ marginBottom: 24 }}>
+          <h3 className="review-section-title" style={{ marginBottom: 16 }}>Leave a Review</h3>
           {sessions.map((session) => (
-            <div key={session._id} style={{ marginBottom: 24 }}>
-              <p style={{ fontSize: "0.9rem", color: "var(--gray-600)", marginBottom: 8 }}>
+            <div key={session._id} className="profile-review-session" style={{ marginBottom: 24 }}>
+              <p className="profile-review-session-meta" style={{ marginBottom: 8 }}>
                 Session: {session.subject} on{" "}
                 {new Date(session.scheduledDate).toLocaleDateString()}
               </p>
@@ -329,8 +329,8 @@ const VolunteerProfile = () => {
       )}
 
       {/* Reviews Section */}
-      <div className="reviews-section">
-        <h3 style={{ marginBottom: 20 }}>
+      <div className="reviews-section reviews-section-modern">
+        <h3 className="review-section-title" style={{ marginBottom: 20 }}>
           Reviews ({reviews.length})
         </h3>
         {reviews.length === 0 ? (

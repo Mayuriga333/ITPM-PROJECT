@@ -11,12 +11,13 @@ const {
   checkContent,
 } = require("../controllers/reviewController");
 const { protect, adminOnly } = require("../middleware/auth");
+const { uploadReviewAttachment } = require("../middleware/upload");
 
 // Public
 router.get("/volunteer/:volunteerId", getVolunteerReviews);
 
 // Student (authenticated)
-router.post("/", protect, createReview);
+router.post("/", protect, uploadReviewAttachment.single("attachment"), createReview);
 
 // Admin
 router.get("/admin/stats", protect, adminOnly, getModerationStats);

@@ -5,6 +5,7 @@ import StarRating from "../components/StarRating";
 import LeaderboardBadge from "../components/LeaderboardBadge";
 import { useAuth } from "../context/AuthContext";
 import { toast } from "react-toastify";
+import smartMatchingImage from "../assets/smart-matching.svg";
 
 const FindVolunteer = () => {
   const { user } = useAuth();
@@ -61,16 +62,10 @@ const FindVolunteer = () => {
       </div>
 
       {/* Search Form */}
-      <form className="card card-elevated" onSubmit={handleSearch} style={{ marginBottom: 32 }}>
-        <h3 style={{ marginBottom: 20 }}>What do you need help with?</h3>
+      <form className="card card-elevated matching-search-form" onSubmit={handleSearch}>
+        <h3 className="matching-search-title">What do you need help with?</h3>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-            gap: 16,
-          }}
-        >
+        <div className="matching-search-grid">
           <div className="form-group">
             <label className="form-label">Subject *</label>
             <input
@@ -134,19 +129,18 @@ const FindVolunteer = () => {
 
       {/* Matching Formula */}
       {!searched && (
-        <div className="card" style={{ marginBottom: 32, background: "var(--primary-50)" }}>
-          <h4 style={{ marginBottom: 12 }}>How Smart Matching Works</h4>
-          <p style={{ color: "var(--gray-600)", fontSize: "0.9rem", lineHeight: 1.7 }}>
-            Our algorithm calculates a weighted matching score based on:
-          </p>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-              gap: 12,
-              marginTop: 16,
-            }}
-          >
+        <div className="card smart-matching-panel">
+          <div className="smart-matching-header">
+            <div>
+              <h4>How Smart Matching Works</h4>
+              <p>
+                Our algorithm calculates a weighted matching score based on:
+              </p>
+            </div>
+            <img src={smartMatchingImage} alt="Smart matching analytics illustration" />
+          </div>
+
+          <div className="smart-matching-grid">
             {[
               { label: "Subject Match", weight: "40%" },
               { label: "Availability", weight: "25%" },
@@ -154,20 +148,11 @@ const FindVolunteer = () => {
               { label: "Rating", weight: "10%" },
               { label: "Reputation", weight: "10%" },
             ].map((item) => (
-              <div
-                key={item.label}
-                style={{
-                  textAlign: "center",
-                  padding: "16px",
-                  background: "var(--white)",
-                  borderRadius: "var(--radius)",
-                  border: "1px solid var(--primary-lighter)",
-                }}
-              >
-                <div style={{ fontSize: "1.3rem", fontWeight: 800, color: "var(--primary)" }}>
+              <div key={item.label} className="smart-match-box">
+                <div className="smart-match-weight">
                   {item.weight}
                 </div>
-                <div style={{ fontSize: "0.85rem", color: "var(--gray-600)", marginTop: 4 }}>
+                <div className="smart-match-label">
                   {item.label}
                 </div>
               </div>

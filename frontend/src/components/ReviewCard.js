@@ -8,6 +8,14 @@ const ReviewCard = ({ review, showStatus }) => {
     year: "numeric",
   });
 
+  const formattedSessionDate = review.sessionDate
+    ? new Date(review.sessionDate).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : null;
+
   const studentName = review.isAnonymous
     ? "Anonymous"
     : review.student?.name || "Student";
@@ -23,7 +31,7 @@ const ReviewCard = ({ review, showStatus }) => {
   };
 
   return (
-    <div className="review-card card">
+    <div className="review-card card review-card-modern">
       <div className="review-header">
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -49,7 +57,52 @@ const ReviewCard = ({ review, showStatus }) => {
       </div>
 
       {review.reviewText && (
-        <p className="review-text">"{review.reviewText}"</p>
+        <p className="review-text review-quote">"{review.reviewText}"</p>
+      )}
+
+      {review.topicStudied && (
+        <div className="review-footer review-chip-row" style={{ marginTop: 8 }}>
+          <span className="review-chip">Topic: {review.topicStudied}</span>
+        </div>
+      )}
+
+      {Array.isArray(review.feedbackTags) && review.feedbackTags.length > 0 && (
+        <div className="review-chip-row" style={{ marginTop: 8 }}>
+          {review.feedbackTags.map((tag) => (
+            <span key={tag} className="review-chip review-chip-soft">
+              {tag.replace("_", " ")}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {(review.experienceType || formattedSessionDate || typeof review.followUpMatchAgain === "boolean") && (
+        <div className="review-footer review-chip-row" style={{ marginTop: 8 }}>
+          {formattedSessionDate && <span className="review-chip">Session: {formattedSessionDate}</span>}
+          {review.experienceType && <span className="review-chip">Type: {review.experienceType.replace("_", " ")}</span>}
+          {typeof review.followUpMatchAgain === "boolean" && (
+            <span className="review-chip">Match again: {review.followUpMatchAgain ? "Yes" : "No"}</span>
+          )}
+        </div>
+      )}
+
+      {review.recommendation && (
+        <p className="review-text" style={{ marginTop: 8 }}>
+          Recommendation: {review.recommendation}
+        </p>
+      )}
+
+      {review.attachment?.fileUrl && (
+        <div className="review-footer" style={{ marginTop: 8 }}>
+          <a
+            className="review-link"
+            href={`http://localhost:5000${review.attachment.fileUrl}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            View attachment
+          </a>
+        </div>
       )}
 
       <div className="review-footer">
