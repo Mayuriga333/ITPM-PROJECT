@@ -1,4 +1,4 @@
-const Volunteer = require('../models/volunteer');
+const Volunteer = require('../models/Volunteer');
 const SupportRequest = require('../models/SupportRequest');
 
 // Register a new volunteer
@@ -92,7 +92,7 @@ exports.getVolunteerRequests = async (req, res) => {
   try {
     const requests = await SupportRequest.find({
       volunteer: req.params.id,
-      status: { $in: ['pending', 'accepted'] }
+      status: { $in: ['pending', 'accepted', 'rejected', 'completed'] }
     })
     .populate('student', 'name email')
     .sort({ date: 1, timeSlot: 1 });

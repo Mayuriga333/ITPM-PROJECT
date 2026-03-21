@@ -27,6 +27,13 @@ const validationErrorResponse = (res, status, message, errors = []) => {
   });
 };
 
+const buildRequestDay = (date) => {
+  const d = new Date(date);
+  if (Number.isNaN(d.getTime())) return null;
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
 // Create a new support request
 exports.createRequest = async (req, res) => {
   try {
@@ -172,6 +179,139 @@ exports.createRequest = async (req, res) => {
   }
 };
 
+// Update an existing support request (student action, only while pending)
+exports.updateRequest = async (req, res) => {
+  try {
+    const { subject, date, timeSlot, message, studentName } = req.body;
+
+    const request = await SupportRequest.findById(req.params.id).populate('volunteer');
+    if (!request) {
+      return validationErrorResponse(res, 404, 'Request not found');
+    }
+
+    if (request.status !== 'pending') {
+      return validationErrorResponse(res, 400, 'Only pending requests can be updated');
+    }
+
+    const volunteer = request.volunteer ? request.volunteer : await Volunteer.findById(request.volunteer);
+    if (!volunteer) {
+      return validationErrorResponse(res, 404, 'Volunteer not found');
+    }
+
+    const errors = [];
+
+    if (!subject || typeof subject !== 'string') {
+      errors.push({ path: 'subject', message: 'subject is required.' });
+    } else if (!ALLOWED_SUBJECTS.includes(subject)) {
+      errors.push({ path: 'subject', message: 'Subject must be one of the allowed subjects.' });
+    } else if (!volunteer.subjects.includes(subject)) {
+      errors.push({ path: 'subject', message: 'Selected volunteer does not teach this subject.' });
+    }
+
+    if (!date || typeof date !== 'string') {
+      errors.push({ path: 'date', message: 'date is required and must be a string.' });
+    }
+
+    if (!timeSlot || typeof timeSlot !== 'string') {
+      errors.push({ path: 'timeSlot', message: 'timeSlot is required.' });
+    } else if (!ALLOWED_TIME_SLOTS.includes(timeSlot)) {
+      errors.push({ path: 'timeSlot', message: 'Time slot must be one of the allowed values.' });
+    }
+
+    if (message && typeof message === 'string') {
+      const trimmed = message.trim();
+      if (trimmed.length > 500) {
+        errors.push({ path: 'message', message: 'message must be at most 500 characters.' });
+      }
+    }
+
+    if (errors.length > 0) {
+      return validationErrorResponse(res, 400, 'Validation failed', errors);
+    }
+
+    const requestedDate = new Date(date);
+    if (Number.isNaN(requestedDate.getTime())) {
+      return validationErrorResponse(res, 400, 'Invalid date', [
+        { path: 'date', message: 'Date must be a valid ISO date string.' },
+      ]);
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const requestDay = buildRequestDay(requestedDate);
+
+    if (!requestDay) {
+      return validationErrorResponse(res, 400, 'Invalid date', [
+        { path: 'date', message: 'Date must be a valid ISO date string.' },
+      ]);
+    }
+
+    if (requestDay < today) {
+      return validationErrorResponse(res, 400, 'Date must be today or in the future', [
+        { path: 'date', message: 'You cannot book sessions in the past.' },
+      ]);
+    }
+
+    if (volunteer.availability === 'Available Now' && requestDay > today) {
+      return validationErrorResponse(res, 400, 'Volunteer is only available today', [
+        { path: 'date', message: 'This volunteer is marked as "Available Now" only.' },
+      ]);
+    }
+
+    if (volunteer.availability === 'This Week') {
+      const weekAhead = new Date(today);
+      weekAhead.setDate(weekAhead.getDate() + 7);
+      if (requestDay > weekAhead) {
+        return validationErrorResponse(res, 400, 'Volunteer is only available this week', [
+          { path: 'date', message: 'Choose a date within the next 7 days.' },
+        ]);
+      }
+    }
+
+    // Prevent duplicate pending/accepted requests for same slot (for this student + volunteer)
+    const duplicate = await SupportRequest.findOne({
+      _id: { $ne: request._id },
+      volunteer: request.volunteer,
+      student: request.student || undefined,
+      studentName: request.student ? undefined : (studentName || request.studentName),
+      date: requestDay,
+      timeSlot,
+      status: { $in: ['pending', 'accepted'] },
+    });
+
+    if (duplicate) {
+      return validationErrorResponse(res, 409, 'Duplicate request for this time slot', [
+        { path: 'timeSlot', message: 'You already have a request for this volunteer at this time.' },
+      ]);
+    }
+
+    // Apply updates
+    if (studentName && typeof studentName === 'string') {
+      request.studentName = studentName;
+    }
+    request.subject = subject;
+    request.date = requestDay;
+    request.timeSlot = timeSlot;
+    if (typeof message === 'string') {
+      request.message = message.trim();
+    }
+
+    await request.save();
+
+    res.json({
+      success: true,
+      message: 'Request updated successfully',
+      data: request,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      errors: [{ path: null, message: error.message }],
+    });
+  }
+};
+
 // Get request by ID
 exports.getRequestById = async (req, res) => {
   try {
@@ -264,18 +404,24 @@ exports.acceptRequest = async (req, res) => {
 exports.rejectRequest = async (req, res) => {
   try {
     const request = await SupportRequest.findById(req.params.id);
-    
+
     if (!request) {
       return validationErrorResponse(res, 404, 'Request not found');
     }
-    
+
     if (request.status !== 'pending') {
       return validationErrorResponse(res, 400, 'Request is no longer pending');
     }
-    
+
+    const { rejectReason } = req.body;
+
     request.status = 'rejected';
-    await request.save();
+    if (rejectReason) {
+      request.rejectReason = rejectReason;
+    }
     
+    await request.save();
+
     res.json({
       success: true,
       message: 'Request rejected successfully',
@@ -319,3 +465,106 @@ exports.completeRequest = async (req, res) => {
     });
   }
 };
+
+// Add a student review + rating for a completed/accepted request
+exports.addReview = async (req, res) => {
+  try {
+    const { rating, reviewText, reviewSubject } = req.body;
+
+    const errors = [];
+
+    if (typeof rating !== 'number' || Number.isNaN(rating) || rating < 1 || rating > 5) {
+      errors.push({ path: 'rating', message: 'Rating must be a number between 1 and 5.' });
+    }
+
+    if (!reviewSubject || typeof reviewSubject !== 'string' || !reviewSubject.trim()) {
+      errors.push({ path: 'reviewSubject', message: 'Topic/subject studied is required.' });
+    }
+
+    if (reviewText && typeof reviewText === 'string' && reviewText.trim().length > 1000) {
+      errors.push({ path: 'reviewText', message: 'Review must be at most 1000 characters.' });
+    }
+
+    if (errors.length > 0) {
+      return validationErrorResponse(res, 400, 'Validation failed', errors);
+    }
+
+    const request = await SupportRequest.findById(req.params.id);
+
+    if (!request) {
+      return validationErrorResponse(res, 404, 'Request not found');
+    }
+
+    if (!['accepted', 'completed'].includes(request.status)) {
+      return validationErrorResponse(res, 400, 'Only accepted or completed requests can be reviewed');
+    }
+
+    if (typeof request.rating === 'number' && request.rating > 0) {
+      return validationErrorResponse(res, 400, 'This request already has a review');
+    }
+
+    request.rating = rating;
+    request.reviewText = reviewText ? reviewText.trim() : '';
+    request.reviewSubject = reviewSubject.trim();
+    request.reviewCreatedAt = new Date();
+
+    await request.save();
+
+    // Update volunteer's aggregate rating if possible
+    const volunteer = await Volunteer.findById(request.volunteer);
+    if (volunteer) {
+      const currentCount = typeof volunteer.ratingCount === 'number' ? volunteer.ratingCount : 0;
+      const currentRating = typeof volunteer.rating === 'number' ? volunteer.rating : 0;
+      const newCount = currentCount + 1;
+
+      const newAverage = ((currentRating * currentCount) + rating) / (newCount || 1);
+
+      volunteer.ratingCount = newCount;
+      volunteer.rating = newAverage;
+      await volunteer.save();
+    }
+
+    res.json({
+      success: true,
+      message: 'Review submitted successfully',
+      data: request,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      errors: [{ path: null, message: error.message }],
+    });
+  }
+};
+
+// Delete a support request (student action, allowed for pending or rejected)
+exports.deleteRequest = async (req, res) => {
+  try {
+    const request = await SupportRequest.findById(req.params.id);
+
+    if (!request) {
+      return validationErrorResponse(res, 404, 'Request not found');
+    }
+
+    if (!['pending', 'rejected'].includes(request.status)) {
+      return validationErrorResponse(res, 400, 'Only pending or rejected requests can be deleted');
+    }
+
+    await request.deleteOne();
+
+    res.json({
+      success: true,
+      message: 'Request deleted successfully',
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      errors: [{ path: null, message: error.message }],
+    });
+  }
+};
+
+
+//Testing comment

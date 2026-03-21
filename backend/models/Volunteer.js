@@ -13,6 +13,10 @@ const volunteerSchema = new mongoose.Schema({
     lowercase: true,
     trim: true
   },
+  password: {
+    type: String,
+    required: false
+  },
   subjects: [{
     type: String,
     enum: [
@@ -37,6 +41,10 @@ const volunteerSchema = new mongoose.Schema({
     default: 0,
     min: 0,
     max: 5
+  },
+  ratingCount: {
+    type: Number,
+    default: 0
   },
   totalSessions: {
     type: Number,

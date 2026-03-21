@@ -13,6 +13,10 @@ const studentSchema = new mongoose.Schema({
     lowercase: true,
     trim: true
   },
+  password: {
+    type: String,
+    required: false // allowing false so we don't break existing records
+  },
   createdAt: {
     type: Date,
     default: Date.now

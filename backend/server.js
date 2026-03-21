@@ -28,6 +28,7 @@ mongoose.connect(URL)
 });
 
 // Routes
+app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/volunteers', require('./routes/volunteerRoutes'));
 app.use('/api/requests', require('./routes/requestRoutes'));
 app.use('/api/students', require('./routes/studentRoutes'));

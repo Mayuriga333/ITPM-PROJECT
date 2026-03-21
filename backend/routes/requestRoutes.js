@@ -4,9 +4,12 @@ const router = express.Router();
 const {
   createRequest,
   getRequestById,
+  updateRequest,
   acceptRequest,
   rejectRequest,
-  completeRequest
+  completeRequest,
+  addReview,
+  deleteRequest
 } = require('../controllers/requestController');
 
 // Shared validation helpers
@@ -70,6 +73,9 @@ router.post('/', validateCreateRequest, createRequest);
 // Get request by ID
 router.get('/:id', validateRequestId, getRequestById);
 
+// Update an existing support request (student action)
+router.put('/:id', validateRequestId, updateRequest);
+
 // Accept request (volunteer action)
 router.put('/:id/accept', validateRequestId, acceptRequest);
 
@@ -78,5 +84,11 @@ router.put('/:id/reject', validateRequestId, rejectRequest);
 
 // Complete request
 router.put('/:id/complete', validateRequestId, completeRequest);
+
+// Add a review/rating for a request (student action)
+router.post('/:id/review', validateRequestId, addReview);
+
+// Delete a support request (student action)
+router.delete('/:id', validateRequestId, deleteRequest);
 
 module.exports = router;

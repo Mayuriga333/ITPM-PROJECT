@@ -55,6 +55,26 @@ const supportRequestSchema = new mongoose.Schema({
     enum: ['pending', 'accepted', 'rejected', 'completed'],
     default: 'pending'
   },
+  rejectReason: {
+    type: String,
+    maxlength: 500
+  },
+  rating: {
+    type: Number,
+    min: 1,
+    max: 5
+  },
+  reviewText: {
+    type: String,
+    maxlength: 1000
+  },
+  reviewSubject: {
+    type: String,
+    maxlength: 200
+  },
+  reviewCreatedAt: {
+    type: Date
+  },
   createdAt: {
     type: Date,
     default: Date.now
