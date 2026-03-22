@@ -61,7 +61,7 @@ const volunteerSchema = new mongoose.Schema({
   },
   dailySessionLimit: {
     type: Number,
-    default: 3
+    default: 6
   },
   todaysSessions: {
     type: Number,
