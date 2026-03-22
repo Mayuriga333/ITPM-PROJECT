@@ -52,7 +52,7 @@ const DiscoveryPage = () => {
       <nav className="flex items-center justify-between px-10 py-6">
         <Link to="/" className="flex items-center space-x-2">
           <BookOpen className="h-8 w-8 text-blue-500" />
-          <span className="text-xl font-bold text-slate-50">TutorConnect</span>
+          <span className="text-xl font-bold text-slate-50">EduConnect</span>
         </Link>
 
         <div className="flex items-center gap-4">

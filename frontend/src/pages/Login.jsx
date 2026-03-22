@@ -70,7 +70,7 @@ export default function Login() {
           {/* Branding Header */}
           <div className="text-center mb-10">
             <h1 className="font-black text-4xl text-white tracking-tighter mb-2" style={{ fontFamily: '"Manrope", sans-serif' }}>
-              TutorConnect
+              EduConnect
             </h1>
             <p className="text-slate-400 text-sm">Curated Academic Excellence</p>
           </div>
@@ -207,14 +207,14 @@ export default function Login() {
       {/* Footer */}
       <footer className="bg-black/40 border-t border-white/5 w-full mt-auto py-12">
         <div className="flex flex-col md:flex-row justify-between items-center max-w-7xl mx-auto px-8 gap-6">
-          <div className="text-lg font-bold text-white tracking-tight" style={{ fontFamily: '"Manrope", sans-serif' }}>TutorConnect</div>
+          <div className="text-lg font-bold text-white tracking-tight" style={{ fontFamily: '"Manrope", sans-serif' }}>EduConnect</div>
           <div className="flex flex-wrap justify-center gap-x-8 gap-y-2 items-center">
             <a href="#" className="text-slate-400 hover:text-indigo-500 transition-colors text-sm font-medium">Forgot Password</a>
             <Link to="/register" className="text-indigo-500 hover:text-white underline text-sm font-semibold">Sign Up</Link>
             <a href="#" className="text-slate-400 hover:text-indigo-500 transition-colors text-sm font-medium">Privacy Policy</a>
             <a href="#" className="text-slate-400 hover:text-indigo-500 transition-colors text-sm font-medium">Terms of Service</a>
           </div>
-          <p className="text-sm text-slate-400">© 2024 TutorConnect. Curated Academic Excellence.</p>
+          <p className="text-sm text-slate-400">© 2024 EduConnect. Curated Academic Excellence.</p>
         </div>
       </footer>
     </div>
