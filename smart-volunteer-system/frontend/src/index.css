@@ -1,0 +1,268 @@
+/* src/index.css — Global styles for Educonnect */
+
+/* Tailwind CSS v4 */
+@import "tailwindcss";
+@source "../index.html";
+
+:root {
+  --bg:        #0A192F;
+  --bg-card:   #112240;
+  --bg-raised: #1A2F4B;
+  --bg-secondary: #E5E7EB;
+  --border:    #2D3748;
+  --accent:    #2563EB;
+  --accent2:   #FBBF24;
+  --accent3:   #10B981;
+  --text:      #FFFFFF;
+  --text-secondary: #94A3B8;
+  --muted:     #94A3B8;
+  --font-head: 'Inter', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  --radius:    16px;
+  --shadow:    0 4px 32px rgba(37, 99, 235, 0.12);
+  --glass-bg:   rgba(255, 255, 255, 0.05);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  
+  /* Status Colors */
+  --status-approved:  #22C55E;
+  --status-pending:   #F59E0B;
+  --status-suspended: #EF4444;
+  --status-rejected:  #DC2626;
+  
+  /* Hover Effects */
+  --hover-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+  --hover-transform: translateY(-5px);
+}
+
+@layer base {
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.6;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,h2,h3,h4 { font-family: var(--font-head); line-height: 1.2; }
+
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  button { cursor: pointer; font-family: var(--font-body); }
+
+  input, textarea, select {
+    font-family: var(--font-body);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    width: 100%;
+    font-size: 15px;
+    transition: border-color .2s, box-shadow .2s;
+    outline: none;
+  }
+  input:focus, textarea:focus, select:focus {
+    border-color: var(--accent);
+    box-shadow: var(--shadow);
+  }
+  input::placeholder, textarea::placeholder { 
+    color: var(--text-secondary);
+  }
+}
+
+/* ── Custom Components ───────────────────────────────────────────────────────── */
+@layer components {
+  .page {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Enhanced Button Styles ─────────────────────────────────────────────────── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 28px;
+    border-radius: var(--radius);
+    font-size: 15px;
+    font-weight: 600;
+    font-family: var(--font-head);
+    border: none;
+    transition: transform .15s, box-shadow .15s, opacity .15s;
+    letter-spacing: .02em;
+    cursor: pointer;
+  }
+
+  .btn:active { 
+    transform: scale(.97); 
+  }
+
+  .btn:disabled { 
+    opacity: .5; 
+    cursor: not-allowed; 
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: var(--text);
+    box-shadow: var(--shadow);
+  }
+
+  .btn-primary:hover:not(:disabled) { 
+    box-shadow: 0 6px 28px rgba(37, 99, 235, 0.3); 
+    transform: translateY(-1px); 
+  }
+
+  .btn-secondary {
+    background: transparent;
+    color: var(--text);
+    border: 2px solid var(--border);
+  }
+
+  .btn-secondary:hover:not(:disabled) { 
+    border-color: var(--accent); 
+    color: var(--accent); 
+  }
+
+  .btn-danger {
+    background: rgba(251, 191, 36, 0.15);
+    color: var(--accent2);
+    border: 1px solid rgba(251, 191, 36, 0.3);
+  }
+
+  .btn-danger:hover:not(:disabled) { 
+    background: rgba(251, 191, 36, 0.25); 
+  }
+
+  .btn-success {
+    background: var(--accent3);
+    color: var(--bg);
+    border: none;
+  }
+
+  .btn-success:hover:not(:disabled) { 
+    box-shadow: 0 6px 24px rgba(16, 185, 129, 0.3); 
+    transform: translateY(-1px); 
+  }
+
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    box-shadow: none;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+  }
+
+  .glass-card {
+    background: var(--glass-bg);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius);
+    padding: 24px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .glass-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: var(--font-head);
+  }
+
+  .badge-student  { 
+    background: rgba(37, 99, 235, 0.2); 
+    color: var(--accent); 
+    border: 1px solid rgba(37, 99, 235, 0.3); 
+  }
+
+  .badge-volunteer{ 
+    background: rgba(16, 185, 129, 0.15); 
+    color: var(--accent3); 
+    border: 1px solid rgba(16, 185, 129, 0.3); 
+  }
+
+  .error-msg {
+    background: rgba(251, 191, 36, 0.1);
+    border: 1px solid rgba(251, 191, 36, 0.3);
+    color: var(--accent2);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    font-size: 14px;
+  }
+
+  .success-msg {
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    color: var(--accent3);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    font-size: 14px;
+  }
+
+  /* ── Layout ─────────────────────────────────────────────────────────────────── */
+  .container {
+    width: 100%;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+}
+
+/* ── Animations ─────────────────────────────────────────────────────────────── */
+@layer utilities {
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(18px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes shrink {
+    from { width: 100%; }
+    to   { width: 0%; }
+  }
+  @keyframes pulse {
+    0%,100% { transform: scale(1); }
+    50%      { transform: scale(1.05); }
+  }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .fade-up  { animation: fadeUp .45s ease both; }
+  .fade-in  { animation: fadeIn .3s ease both; }
+
+  .spinner {
+    width: 20px; height: 20px;
+    border: 2.5px solid rgba(255,255,255,.2);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+}
