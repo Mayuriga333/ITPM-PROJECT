@@ -13,6 +13,7 @@ const authRoutes  = require('./routes/authRoutes');
 const chatRoutes  = require('./routes/chatRoutes');
 const matchRoutes = require('./routes/matchRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const messageRoutes = require('./routes/messageRoutes');
 
 const app = express();
 
@@ -24,6 +25,7 @@ app.use('/api/auth',  authRoutes);
 app.use('/api/chat',  chatRoutes);
 app.use('/api/match', matchRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/messages', messageRoutes);
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date() }));
 
