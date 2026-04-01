@@ -85,7 +85,7 @@ const register = async (req, res) => {
  * POST /api/auth/login
  * Body: { email, password }
  * Status check is enforced by the protect middleware for protected routes,
- * but we also block here so the client receives a clear error on login.
+ * but also block here so the client receives a clear error on login.
  */
 const login = async (req, res) => {
   try {
