@@ -8,7 +8,7 @@ const HomePage = () => {
       {/* Hero Section */}
       <section className="text-center py-16">
         <h1 className="text-5xl font-bold text-slate-50 mb-4">
-          EduConnect
+          TutorConnect
         </h1>
         <p className="text-xl text-slate-300 max-w-2xl mx-auto">
           Connect with peer volunteers for academic support. Learn together, grow together.

@@ -11,13 +11,16 @@ function Navbar() {
           <div className="flex items-center">
             <Link to="/" className="flex items-center space-x-2">
               <BookOpen className="h-8 w-8 text-blue-500" />
-              <span className="text-xl font-bold text-slate-50">EduConnect</span>
+              <span className="text-xl font-bold text-slate-50">TutorConnect</span>
             </Link>
           </div>
 
           <div className="flex items-center space-x-4">
             <Link to="/discovery" className="btn-secondary">
               Browse Volunteers
+            </Link>
+            <Link to="/chat" className="btn-secondary">
+              Chats
             </Link>
             <UserMenu />
           </div>

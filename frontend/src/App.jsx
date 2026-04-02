@@ -7,6 +7,7 @@ import DiscoveryPage from './pages/DiscoveryPage';
 import RequestPage from './pages/RequestPage';
 import StudentDashboard from './pages/StudentDashboard';
 import VolunteerDashboard from './pages/VolunteerDashboard';
+import ChatPage from './pages/ChatPage'; // <--- Added ChatPage
 import Login from './pages/Login'; // <--- Added Login
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -20,7 +21,8 @@ function AppContent() {
     location.pathname === '/login' ||
     location.pathname === '/volunteer/dashboard' || 
     location.pathname === '/student/dashboard' || 
-    location.pathname === '/discovery';
+    location.pathname === '/discovery' ||
+    location.pathname === '/chat';
 
   return (
     <div className={isFullScreenRoute ? "w-full h-screen overflow-hidden" : "app-shell"}>
@@ -65,6 +67,15 @@ function AppContent() {
             element={
               <ProtectedRoute allowedRole="Student">
                 <RequestPage />
+              </ProtectedRoute>
+            } 
+          />
+          
+          <Route 
+            path="/chat" 
+            element={
+              <ProtectedRoute>
+                <ChatPage />
               </ProtectedRoute>
             } 
           />

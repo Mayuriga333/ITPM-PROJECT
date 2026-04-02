@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import socketService from '../services/socket';
 
 const AuthContext = createContext(null);
 
@@ -14,6 +15,16 @@ export const AuthProvider = ({ children }) => {
     }
     setLoading(false);
   }, []);
+
+  // Socket lifecycle: connect when user is present, disconnect on logout
+  useEffect(() => {
+    const userId = user?.id;
+    if (userId) {
+      socketService.connect(userId);
+    } else {
+      socketService.disconnect();
+    }
+  }, [user?.id]);
 
   const login = (userData) => {
     setUser(userData);
@@ -32,6 +43,7 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('session_user');
     localStorage.removeItem('currentStudent');
     localStorage.removeItem('currentVolunteer');
+    disconnectSocket();
   };
 
   return (

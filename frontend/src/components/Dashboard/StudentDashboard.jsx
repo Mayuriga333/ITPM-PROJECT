@@ -14,11 +14,13 @@ import { Input, Label } from '../common/Input';
 import { useAuth } from '../../context/AuthContext';
 import UserMenu from '../common/UserMenu';
 
+
 const StudentDashboard = () => {
   const { user } = useAuth();
   const [requests, setRequests] = useState({});
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [requestStatusFilter, setRequestStatusFilter] = useState('pending');
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [activeRequestForReview, setActiveRequestForReview] = useState(null);
   const [reviewRating, setReviewRating] = useState(0);
@@ -33,6 +35,8 @@ const StudentDashboard = () => {
   const [editDate, setEditDate] = useState('');
   const [editTimeSlot, setEditTimeSlot] = useState('');
   const [submittingEdit, setSubmittingEdit] = useState(false);
+  // const [chatOpen, setChatOpen] = useState(false);
+  // const [chatPeer, setChatPeer] = useState(null);
   const navigate = useNavigate();
 
   const student = storage.getCurrentStudent();
@@ -208,6 +212,17 @@ const StudentDashboard = () => {
     }
   };
 
+  const openChat = (request) => {
+    const volunteerId = request?.volunteer?._id || request?.volunteer;
+    const volunteerName = request?.volunteerName || request?.volunteer?.name || 'Volunteer';
+    if (!volunteerId || !studentId) {
+      toast.error('Unable to open chat for this request');
+      return;
+    }
+
+    navigate(`/chat`);
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -223,6 +238,11 @@ const StudentDashboard = () => {
     ...(requests.rejected || []),
     ...(requests.completed || []),
   ];
+
+  const filteredSubmittedRequests = submittedRequests.filter((req) => {
+    const status = String(req?.status || '').toLowerCase();
+    return status === requestStatusFilter;
+  });
 
   return (
     <motion.div
@@ -252,6 +272,15 @@ const StudentDashboard = () => {
               <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-white/10">➤</span>
               <span>Submitted Requests</span>
             </button>
+
+            <button
+              type="button"
+              onClick={() => navigate('/chat')}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors hover:bg-[#181D31] text-slate-300"
+            >
+              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-white/10">➤</span>
+              <span>Chats</span>
+            </button>
           </nav>
         </aside>
 
@@ -275,13 +304,53 @@ const StudentDashboard = () => {
             </div>
           )}
 
+          {/* Filters */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-2">
+            <div className="text-sm font-semibold text-white">Filter</div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setRequestStatusFilter('pending')}
+                className={`px-4 py-2 rounded-xl text-sm font-medium border transition-colors ${
+                  requestStatusFilter === 'pending'
+                    ? 'bg-[#181D31] text-indigo-400 border-[#1C2033]'
+                    : 'bg-transparent text-slate-300 border-[#1C2033] hover:bg-[#181D31]'
+                }`}
+              >
+                Pending
+              </button>
+              <button
+                type="button"
+                onClick={() => setRequestStatusFilter('accepted')}
+                className={`px-4 py-2 rounded-xl text-sm font-medium border transition-colors ${
+                  requestStatusFilter === 'accepted'
+                    ? 'bg-[#181D31] text-indigo-400 border-[#1C2033]'
+                    : 'bg-transparent text-slate-300 border-[#1C2033] hover:bg-[#181D31]'
+                }`}
+              >
+                Accepted
+              </button>
+              <button
+                type="button"
+                onClick={() => setRequestStatusFilter('rejected')}
+                className={`px-4 py-2 rounded-xl text-sm font-medium border transition-colors ${
+                  requestStatusFilter === 'rejected'
+                    ? 'bg-[#181D31] text-indigo-400 border-[#1C2033]'
+                    : 'bg-transparent text-slate-300 border-[#1C2033] hover:bg-[#181D31]'
+                }`}
+              >
+                Rejected
+              </button>
+            </div>
+          </div>
+
           <div className="space-y-4 mt-4">
-            {submittedRequests.length === 0 ? (
+            {filteredSubmittedRequests.length === 0 ? (
               <div className="dark-card-container p-6 text-sm text-indigo-200">
-                You haven't submitted any requests yet.
+                No {requestStatusFilter} requests.
               </div>
             ) : (
-              submittedRequests.map((req) => (
+              filteredSubmittedRequests.map((req) => (
                 <RequestCard
                   key={req._id}
                   request={req}
@@ -289,6 +358,7 @@ const StudentDashboard = () => {
                   onReview={openReviewModal}
                   onEdit={openEditModal}
                   onDelete={handleDeleteRequest}
+                  onChat={openChat}
                 />
               ))
             )}
@@ -310,6 +380,8 @@ const StudentDashboard = () => {
 
         </section>
       </div>
+
+      {/* Chat Navigation handled inside openChat */}
 
       {/* Review Modal */}
       {showReviewModal && activeRequestForReview && (

@@ -18,6 +18,7 @@ import { volunteerAPI, requestAPI } from '../services/api';
 import toast from 'react-hot-toast';
 import StarRating from '../components/common/StarRating';
 import UserMenu from '../components/common/UserMenu';
+import { useNavigate } from 'react-router-dom';
 
 // Mock Data matching the new UI exactly
 const INITIAL_INBOX = [
@@ -33,6 +34,7 @@ const INITIAL_INBOX = [
 
 export default function VolunteerDashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [activeInboxTab, setActiveInboxTab] = useState('pending');
   const [inbox, setInbox] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -40,6 +42,8 @@ export default function VolunteerDashboard() {
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [rejectingId, setRejectingId] = useState(null);
+  // const [chatOpen, setChatOpen] = useState(false);
+  // const [chatPeer, setChatPeer] = useState(null);
 
   const volunteerId = user?.id || JSON.parse(localStorage.getItem('currentVolunteer'))?._id;
 
@@ -62,6 +66,7 @@ export default function VolunteerDashboard() {
       const mappedInbox = requestsData.map(req => ({
         id: req._id,
         student: req.studentName || req.student?.name || 'Unknown Student',
+        studentId: req.student?._id,
         subject: req.subject,
         time: new Date(req.createdAt).toLocaleString(),
         message: req.message || 'No message provided',
@@ -80,6 +85,15 @@ export default function VolunteerDashboard() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const openChat = (req) => {
+    if (!req?.studentId) {
+      toast.error('This request has no linked student account');
+      return;
+    }
+
+    navigate('/chat');
   };
 
   const handleAction = async (id, action) => {
@@ -153,6 +167,15 @@ export default function VolunteerDashboard() {
             >
               <InboxIcon className="w-5 h-5" />
               Requests
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate('/chat')}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors hover:bg-[#181D31] text-slate-300"
+            >
+              <MessageSquare className="w-5 h-5" />
+              Chats
             </button>
           </nav>
         </div>
@@ -335,6 +358,17 @@ export default function VolunteerDashboard() {
                               className="px-8 py-2.5 rounded-xl bg-[#2A1E24] hover:bg-[#34242D] border border-red-500/20 text-rose-400 font-bold text-sm transition-colors"
                             >
                               Reject
+                            </button>
+                          </div>
+                        )}
+
+                        {activeInboxTab === 'accepted' && (
+                          <div className="flex gap-3">
+                            <button
+                              onClick={() => openChat(req)}
+                              className="px-8 py-2.5 rounded-xl bg-[#5046E5] hover:bg-[#4338CA] text-white font-bold text-sm transition-colors"
+                            >
+                              Chat
                             </button>
                           </div>
                         )}

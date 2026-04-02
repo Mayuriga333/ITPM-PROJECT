@@ -52,7 +52,7 @@ const DiscoveryPage = () => {
       <nav className="flex items-center justify-between px-10 py-6">
         <Link to="/" className="flex items-center space-x-2">
           <BookOpen className="h-8 w-8 text-blue-500" />
-          <span className="text-xl font-bold text-slate-50">EduConnect</span>
+          <span className="text-xl font-bold text-slate-50">TutorConnect</span>
         </Link>
 
         <div className="flex items-center gap-4">
@@ -139,9 +139,9 @@ const DiscoveryPage = () => {
       {/* 5. Results Grid */}
       <div className="max-w-7xl mx-auto px-6 pb-48 mb-20">
         <div className="flex justify-between items-center mb-6">
-          {/* <p className="text-sm font-medium text-slate-300">
-            Showing <span className="font-bold text-white">{volunteers.length === 0 ? '0' : '0'}</span> active volunteers
-          </p> */}
+          <p className="text-sm font-medium text-slate-300">
+            Showing <span className="font-bold text-white">{volunteers.length === 0 ? '0' : '428'}</span> active volunteers
+          </p>
           <div className="flex items-center gap-2">
             <span className="text-sm text-slate-400">Sort:</span>
             <button className="flex items-center gap-1 text-sm font-bold text-white">

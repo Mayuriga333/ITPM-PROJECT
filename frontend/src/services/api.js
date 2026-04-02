@@ -81,4 +81,15 @@ export const requestAPI = {
   remove: (id) => API.delete(`/requests/${id}`),
 };
 
+// Chat APIs
+export const conversationAPI = {
+  create: (data) => API.post('/conversation', data),
+  getForUser: (userId) => API.get(`/conversation/${userId}`),
+};
+
+export const messageAPI = {
+  getForConversation: (conversationId) => API.get(`/messages/${conversationId}`),
+  send: (data) => API.post('/messages', data),
+};
+
 export default API;
