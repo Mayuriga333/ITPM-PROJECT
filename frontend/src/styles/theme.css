@@ -1,0 +1,92 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+@reference "tailwindcss";
+
+@layer base {
+  /* Body styles handled by index.css — study pages use StudyLayout inline background */
+}
+
+@layer components {
+  /* Highly Translucent Glass Cards (Flexing with background) */
+  .card-container {
+    background-color: #141824;
+    border-radius: 1rem; /* approx rounded-2xl */
+    border: 1px solid #21273B;
+    color: #e2e8f0; /* slate-200 */
+    box-shadow: 0 18px 45px rgba(0, 0, 0, 0.55);
+    transition-property: all;
+    transition-duration: 300ms;
+  }
+
+  .card-container:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 24px 60px rgba(15, 23, 42, 0.8);
+    border-color: #373f68;
+  }
+  
+  .dark-card-container {
+    @apply bg-neutral-900/40 backdrop-blur-3xl rounded-2xl shadow-lg border border-neutral-700 transition-all duration-300 text-neutral-100;
+  }
+
+  /* Soft semi-transparent card (used in Study HomePage feature grid) */
+  .card-soft {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius: 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: all 0.3s;
+  }
+  .card-soft:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.2);
+    transform: translateY(-2px);
+  }
+
+  /* Solid dark surface card (used in Study RegisterPage / CTA sections) */
+  .card-surface {
+    background: rgba(30, 27, 75, 0.6);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-radius: 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  /* Vibrant Gradient Button */
+  .btn-primary {
+    @apply bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-400 hover:to-purple-400 text-white font-medium py-3 px-6 rounded-xl transition-all duration-300 shadow-lg shadow-purple-500/30 inline-flex items-center justify-center;
+  }
+  
+  .btn-outline {
+    @apply border border-white/30 bg-white/10 backdrop-blur-md text-white hover:bg-white/20 hover:border-white/50 font-medium py-3 px-6 rounded-xl transition-all duration-300 shadow-sm inline-flex items-center justify-center;
+  }
+
+  /* Lucid Form Elements inside the light cards */
+  .input-field {
+    @apply w-full h-[44px] px-4 bg-white/10 backdrop-blur-md rounded-xl border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300 shadow-inner;
+  }
+  
+  .input-field option {
+    background-color: #111827; /* dark grey dropdown */
+    color: #e5e7eb; /* light text */
+  }
+  
+  .input-field::placeholder {
+    @apply text-indigo-200;
+  }
+
+  .input-label {
+    @apply block text-[14px] font-semibold text-white mb-2;
+  }
+  
+  /* Skeleton loader */
+  .skeleton-loader {
+    @apply bg-white/15 backdrop-blur-md rounded-lg;
+    animation: skeleton-pulse 1.5s ease-in-out infinite;
+  }
+}
+
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
