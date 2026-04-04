@@ -5,7 +5,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Bot, MessageCircle, Star, ShieldCheck, Eye, EyeOff, AlertCircle, CheckCircle2, Circle, GraduationCap, HeartHandshake, AlertTriangle, UserPlus } from 'lucide-react';
+import { Bot, MessageCircle, Star, ShieldCheck, Eye, EyeOff, AlertCircle, CheckCircle2, Circle, GraduationCap, HeartHandshake, Handshake, AlertTriangle, UserPlus } from 'lucide-react';
 
 const RegisterPage = () => {
   const { register, loading } = useAuth();
