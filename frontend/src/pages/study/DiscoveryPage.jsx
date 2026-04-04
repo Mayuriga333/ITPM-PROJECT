@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import VolunteerList from '../../components/study/Volunteers/VolunteerList';
 import { volunteerAPI } from '../../services/api';
-import { Bell, Filter, ChevronDown, BookOpen } from 'lucide-react';
+import { Bell, Filter, ChevronDown, HeartHandshake } from 'lucide-react';
 import UserMenu from '../../components/study/common/UserMenu';
 
 const SUBJECT_Categories = ['Java', 'Python', 'DSA', 'OOP', 'MERN', 'C++', 'Springboot', 'Statistics', 'CS', 'Networking'];
@@ -44,7 +44,7 @@ const DiscoveryPage = () => {
       {/* 1. Simple Header with logo + user info */}
       <nav className="flex items-center justify-between px-10 py-6">
         <Link to="/" className="flex items-center space-x-2">
-          <BookOpen className="h-8 w-8 text-blue-500" />
+          <HeartHandshake className="h-7 w-7 text-white" />
           <span className="text-xl font-bold text-slate-50">EduConnect</span>
         </Link>
 

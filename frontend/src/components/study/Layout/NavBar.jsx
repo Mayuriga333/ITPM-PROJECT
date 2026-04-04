@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { BookOpen } from 'lucide-react';
+import { HeartHandshake } from 'lucide-react';
 import UserMenu from '../common/UserMenu';
 
 function Navbar() {
@@ -10,7 +10,7 @@ function Navbar() {
         <div className="flex justify-between h-16">
           <div className="flex items-center">
             <Link to="/" className="flex items-center space-x-2">
-              <BookOpen className="h-8 w-8 text-blue-500" />
+              <HeartHandshake className="h-7 w-7 text-white" />
               <span className="text-xl font-bold text-slate-50">EduConnect</span>
             </Link>
           </div>

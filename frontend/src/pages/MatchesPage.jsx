@@ -35,6 +35,7 @@ const VolunteerCard = ({ match, rank, needs, onStartConversation }) => {
   const rankColors = { 1: '#fbbf24', 2: '#9ca3af', 3: '#b45309' };
   const rankEmoji  = { 1: '🥇', 2: '🥈', 3: '🥉' };
   const [startingConversation, setStartingConversation] = useState(false);
+  const navigate = useNavigate();
 
   const handleStartConversation = async () => {
     setStartingConversation(true);
@@ -132,6 +133,14 @@ const VolunteerCard = ({ match, rank, needs, onStartConversation }) => {
             </>
           )}
         </button>
+        {profile.studyVolunteerId && (
+          <button
+            onClick={() => navigate(`/study/request/${profile.studyVolunteerId}`)}
+            className="w-full mt-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition-colors flex items-center justify-center gap-2"
+          >
+            📚 Request Support
+          </button>
+        )}
       </div>
     </div>
   );

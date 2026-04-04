@@ -5,7 +5,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Bot, MessageCircle, Star, ShieldCheck, Eye, EyeOff, AlertCircle, CheckCircle2, Circle, GraduationCap, Handshake, AlertTriangle, UserPlus } from 'lucide-react';
+import { Bot, MessageCircle, Star, ShieldCheck, Eye, EyeOff, AlertCircle, CheckCircle2, Circle, GraduationCap, HeartHandshake, AlertTriangle, UserPlus } from 'lucide-react';
 
 const RegisterPage = () => {
   const { register, loading } = useAuth();
@@ -140,8 +140,8 @@ const RegisterPage = () => {
         <div className="relative z-10 w-full max-w-sm">
 
           <div className="flex items-center gap-3 mb-10 hover:scale-105 transition-transform duration-300">
-            <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center font-bold text-white text-sm flex-shrink-0 shadow-lg shadow-purple-500/30">
-              EC
+            <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg shadow-purple-500/30">
+              <HeartHandshake size={22} className="text-white" />
             </div>
             <span className="text-2xl font-extrabold text-white tracking-tight">Educonnect</span>
           </div>

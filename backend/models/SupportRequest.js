@@ -117,6 +117,16 @@ const supportRequestSchema = new mongoose.Schema({
   moderationSeverity: {
     type: String
   },
+  adminNote: {
+    type: String
+  },
+  moderatedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  moderatedAt: {
+    type: Date
+  },
   reviewCreatedAt: {
     type: Date
   },

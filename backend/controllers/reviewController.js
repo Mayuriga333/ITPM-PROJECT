@@ -1,8 +1,45 @@
 const Review = require("../models/Review");
 const Volunteer = require("../models/Volunteer");
 const Session = require("../models/Session");
+const SupportRequest = require("../models/SupportRequest");
 const { detectInappropriateContent } = require("../middleware/reviewModeration");
 const { recalculateReputation } = require("../utils/reputationCalculator");
+
+// ============================
+// Helper: Normalise SupportRequest reviews to match Review shape
+// ============================
+function normaliseSupportRequestReview(sr) {
+  return {
+    _id: sr._id,
+    _source: "SupportRequest",          // marker so moderate knows which collection
+    rating: sr.rating,
+    reviewText: sr.reviewText || "",
+    subject: sr.subject,
+    topicStudied: sr.reviewSubject || "",
+    feedbackTags: sr.feedbackTags || [],
+    experienceType: sr.experienceType || null,
+    followUpMatchAgain: sr.followUpMatchAgain,
+    sessionDate: sr.reviewSessionDate,
+    recommendation: sr.recommendation || "",
+    attachment: sr.attachment || {},
+    isAnonymous: sr.isAnonymous || false,
+    status: sr.moderationStatus || "approved",
+    flagReason: sr.flagReason || "",
+    moderationScore: sr.moderationScore || 0,
+    moderationSeverity: sr.moderationSeverity || null,
+    adminNote: sr.adminNote || "",
+    moderatedAt: sr.moderatedAt || null,
+    createdAt: sr.reviewCreatedAt || sr.createdAt,
+    // Flatten student/volunteer so the frontend sees .student.name, .volunteer.user.name
+    student: sr.student
+      ? { _id: sr.student._id, name: sr.student.name || sr.studentName, email: sr.student.email }
+      : { name: sr.studentName || "Unknown", email: "" },
+    volunteer: sr.volunteer
+      ? { _id: sr.volunteer._id, user: { _id: sr.volunteer._id, name: sr.volunteer.name || sr.volunteerName } }
+      : { user: { name: sr.volunteerName || "Volunteer" } },
+    session: null,
+  };
+}
 
 const TOPIC_REGEX = /^[a-zA-Z0-9\s.,!?\-_'"():;/&]+$/;
 const SAFE_TEXT_REGEX = /^[a-zA-Z0-9\s.,!?\-_'"():;/&\n\r]*$/;
@@ -353,34 +390,62 @@ exports.getAllReviews = async (req, res) => {
   try {
     const { status, page = 1, limit = 20, sortBy = "newest" } = req.query;
 
-    let filter = {};
+    // --- P2 Review filter ---
+    let p2Filter = {};
     if (status && status !== "all") {
-      filter.status = status;
+      p2Filter.status = status;
     }
 
-    let sortOption = { createdAt: -1 };
-    if (sortBy === "oldest") sortOption = { createdAt: 1 };
-    if (sortBy === "rating-high") sortOption = { rating: -1 };
-    if (sortBy === "rating-low") sortOption = { rating: 1 };
-    if (sortBy === "severity") sortOption = { moderationScore: -1 };
+    // --- P3 SupportRequest filter (only docs that have a review) ---
+    let p3Filter = { rating: { $gt: 0 } };
+    if (status && status !== "all") {
+      p3Filter.moderationStatus = status;
+    }
 
-    const reviews = await Review.find(filter)
-      .populate("student", "name email")
-      .populate({
-        path: "volunteer",
-        populate: { path: "user", select: "name email" },
-      })
-      .populate("session", "subject scheduledDate")
-      .sort(sortOption)
-      .skip((page - 1) * limit)
-      .limit(parseInt(limit));
+    // Fetch both collections in parallel
+    const [p2Reviews, p3Docs, p2Total, p3Total] = await Promise.all([
+      Review.find(p2Filter)
+        .populate("student", "name email")
+        .populate({ path: "volunteer", populate: { path: "user", select: "name email" } })
+        .populate("session", "subject scheduledDate"),
+      SupportRequest.find(p3Filter)
+        .populate("student", "name email")
+        .populate("volunteer", "name email"),
+      Review.countDocuments(p2Filter),
+      SupportRequest.countDocuments(p3Filter),
+    ]);
 
-    const total = await Review.countDocuments(filter);
+    // Normalise P3 reviews to match P2 shape
+    const normalisedP3 = p3Docs.map(normaliseSupportRequestReview);
+
+    // Merge & sort
+    let combined = [...p2Reviews.map((r) => r.toObject()), ...normalisedP3];
+
+    const sortKey =
+      sortBy === "oldest" ? "createdAt" :
+      sortBy === "rating-high" ? "rating" :
+      sortBy === "rating-low" ? "rating" :
+      sortBy === "severity" ? "moderationScore" :
+      "createdAt";
+    const sortDir =
+      sortBy === "oldest" || sortBy === "rating-low" ? 1 : -1;
+
+    combined.sort((a, b) => {
+      const va = a[sortKey] ?? 0;
+      const vb = b[sortKey] ?? 0;
+      return sortDir * (va > vb ? -1 : va < vb ? 1 : 0);
+    });
+
+    // Paginate
+    const total = p2Total + p3Total;
+    const pageNum = parseInt(page);
+    const lim = parseInt(limit);
+    const paged = combined.slice((pageNum - 1) * lim, pageNum * lim);
 
     res.json({
-      reviews,
-      totalPages: Math.ceil(total / limit),
-      currentPage: parseInt(page),
+      reviews: paged,
+      totalPages: Math.ceil(total / lim),
+      currentPage: pageNum,
       total,
     });
   } catch (error) {
@@ -392,29 +457,66 @@ exports.getAllReviews = async (req, res) => {
 // @route   GET /api/reviews/admin/stats
 exports.getModerationStats = async (req, res) => {
   try {
-    const [totalReviews, approved, flagged, pending, rejected] = await Promise.all([
+    const p3Base = { rating: { $gt: 0 } };
+
+    const [
+      p2Total, p2Approved, p2Flagged, p2Pending, p2Rejected,
+      p3Total, p3Approved, p3Flagged, p3Pending, p3Rejected,
+    ] = await Promise.all([
       Review.countDocuments(),
       Review.countDocuments({ status: "approved" }),
       Review.countDocuments({ status: "flagged" }),
       Review.countDocuments({ status: "pending" }),
       Review.countDocuments({ status: "rejected" }),
+      SupportRequest.countDocuments(p3Base),
+      SupportRequest.countDocuments({ ...p3Base, moderationStatus: "approved" }),
+      SupportRequest.countDocuments({ ...p3Base, moderationStatus: "flagged" }),
+      SupportRequest.countDocuments({ ...p3Base, moderationStatus: "pending" }),
+      SupportRequest.countDocuments({ ...p3Base, moderationStatus: "rejected" }),
     ]);
 
-    const recentFlagged = await Review.find({ status: "flagged" })
-      .populate("student", "name email")
-      .populate({
-        path: "volunteer",
-        populate: { path: "user", select: "name" },
-      })
-      .sort({ createdAt: -1 })
-      .limit(5);
+    const totalReviews = p2Total + p3Total;
+    const approved = p2Approved + p3Approved;
+    const flagged = p2Flagged + p3Flagged;
+    const pending = p2Pending + p3Pending;
+    const rejected = p2Rejected + p3Rejected;
 
-    const avgResult = await Review.aggregate([
-      { $match: { status: "approved" } },
-      { $group: { _id: null, avgRating: { $avg: "$rating" } } },
+    // Recent flagged from both collections
+    const [recentFlaggedP2, recentFlaggedP3] = await Promise.all([
+      Review.find({ status: "flagged" })
+        .populate("student", "name email")
+        .populate({ path: "volunteer", populate: { path: "user", select: "name" } })
+        .sort({ createdAt: -1 })
+        .limit(5),
+      SupportRequest.find({ ...p3Base, moderationStatus: "flagged" })
+        .populate("student", "name email")
+        .populate("volunteer", "name")
+        .sort({ reviewCreatedAt: -1 })
+        .limit(5),
     ]);
-    const averageRating =
-      avgResult.length > 0 ? Math.round(avgResult[0].avgRating * 10) / 10 : 0;
+
+    const recentFlagged = [
+      ...recentFlaggedP2.map((r) => r.toObject()),
+      ...recentFlaggedP3.map(normaliseSupportRequestReview),
+    ]
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, 5);
+
+    // Average rating across both collections
+    const [avgP2, avgP3] = await Promise.all([
+      Review.aggregate([
+        { $match: { status: "approved" } },
+        { $group: { _id: null, sum: { $sum: "$rating" }, count: { $sum: 1 } } },
+      ]),
+      SupportRequest.aggregate([
+        { $match: { rating: { $gt: 0 }, moderationStatus: "approved" } },
+        { $group: { _id: null, sum: { $sum: "$rating" }, count: { $sum: 1 } } },
+      ]),
+    ]);
+
+    const totalSum = (avgP2[0]?.sum || 0) + (avgP3[0]?.sum || 0);
+    const totalCount = (avgP2[0]?.count || 0) + (avgP3[0]?.count || 0);
+    const averageRating = totalCount > 0 ? Math.round((totalSum / totalCount) * 10) / 10 : 0;
 
     res.json({
       totalReviews,
@@ -435,16 +537,27 @@ exports.getModerationStats = async (req, res) => {
 // @route   GET /api/reviews/flagged
 exports.getFlaggedReviews = async (req, res) => {
   try {
-    const reviews = await Review.find({ status: { $in: ["flagged", "pending"] } })
-      .populate("student", "name email")
-      .populate({
-        path: "volunteer",
-        populate: { path: "user", select: "name" },
+    const [p2, p3] = await Promise.all([
+      Review.find({ status: { $in: ["flagged", "pending"] } })
+        .populate("student", "name email")
+        .populate({ path: "volunteer", populate: { path: "user", select: "name" } })
+        .populate("session", "subject scheduledDate")
+        .sort({ moderationScore: -1, createdAt: -1 }),
+      SupportRequest.find({
+        rating: { $gt: 0 },
+        moderationStatus: { $in: ["flagged", "pending"] },
       })
-      .populate("session", "subject scheduledDate")
-      .sort({ moderationScore: -1, createdAt: -1 });
+        .populate("student", "name email")
+        .populate("volunteer", "name")
+        .sort({ moderationScore: -1, reviewCreatedAt: -1 }),
+    ]);
 
-    res.json(reviews);
+    const combined = [
+      ...p2.map((r) => r.toObject()),
+      ...p3.map(normaliseSupportRequestReview),
+    ].sort((a, b) => (b.moderationScore || 0) - (a.moderationScore || 0));
+
+    res.json(combined);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -460,33 +573,47 @@ exports.moderateReview = async (req, res) => {
       return res.status(400).json({ message: "Status must be 'approved' or 'rejected'" });
     }
 
-    const review = await Review.findById(req.params.id);
-    if (!review) {
+    // Try P2 Review first
+    let review = await Review.findById(req.params.id);
+
+    if (review) {
+      const previousStatus = review.status;
+      review.status = status;
+      if (adminNote) review.adminNote = adminNote;
+      review.moderatedBy = req.user._id;
+      review.moderatedAt = new Date();
+      await review.save();
+
+      if (status === "approved" && previousStatus !== "approved") {
+        await updateVolunteerStats(review.volunteer, review.rating, "add");
+      } else if (status === "rejected" && previousStatus === "approved") {
+        await updateVolunteerStats(review.volunteer, review.rating, "remove");
+      }
+
+      const populatedReview = await Review.findById(review._id)
+        .populate("student", "name email")
+        .populate({ path: "volunteer", populate: { path: "user", select: "name" } });
+
+      return res.json({ message: `Review ${status} successfully`, review: populatedReview });
+    }
+
+    // Fall back to P3 SupportRequest
+    const sr = await SupportRequest.findById(req.params.id);
+    if (!sr || !sr.rating) {
       return res.status(404).json({ message: "Review not found" });
     }
 
-    const previousStatus = review.status;
-    review.status = status;
-    if (adminNote) review.adminNote = adminNote;
-    review.moderatedBy = req.user._id;
-    review.moderatedAt = new Date();
-    await review.save();
+    sr.moderationStatus = status;
+    if (adminNote) sr.adminNote = adminNote;
+    sr.moderatedBy = req.user._id;
+    sr.moderatedAt = new Date();
+    await sr.save();
 
-    // Handle volunteer stats based on status transitions
-    if (status === "approved" && previousStatus !== "approved") {
-      await updateVolunteerStats(review.volunteer, review.rating, "add");
-    } else if (status === "rejected" && previousStatus === "approved") {
-      await updateVolunteerStats(review.volunteer, review.rating, "remove");
-    }
-
-    const populatedReview = await Review.findById(review._id)
+    const populatedSR = await SupportRequest.findById(sr._id)
       .populate("student", "name email")
-      .populate({
-        path: "volunteer",
-        populate: { path: "user", select: "name" },
-      });
+      .populate("volunteer", "name");
 
-    res.json({ message: `Review ${status} successfully`, review: populatedReview });
+    res.json({ message: `Review ${status} successfully`, review: normaliseSupportRequestReview(populatedSR) });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -505,10 +632,13 @@ exports.bulkModerate = async (req, res) => {
       return res.status(400).json({ message: "Status must be 'approved' or 'rejected'" });
     }
 
-    const reviews = await Review.find({ _id: { $in: reviewIds } });
     let processed = 0;
 
-    for (const review of reviews) {
+    // Process P2 Reviews
+    const p2Reviews = await Review.find({ _id: { $in: reviewIds } });
+    const p2Ids = new Set(p2Reviews.map((r) => r._id.toString()));
+
+    for (const review of p2Reviews) {
       const previousStatus = review.status;
       review.status = status;
       review.moderatedBy = req.user._id;
@@ -521,6 +651,19 @@ exports.bulkModerate = async (req, res) => {
         await updateVolunteerStats(review.volunteer, review.rating, "remove");
       }
       processed++;
+    }
+
+    // Process remaining IDs as P3 SupportRequest reviews
+    const p3Ids = reviewIds.filter((id) => !p2Ids.has(id));
+    if (p3Ids.length > 0) {
+      const p3Docs = await SupportRequest.find({ _id: { $in: p3Ids }, rating: { $gt: 0 } });
+      for (const sr of p3Docs) {
+        sr.moderationStatus = status;
+        sr.moderatedBy = req.user._id;
+        sr.moderatedAt = new Date();
+        await sr.save();
+        processed++;
+      }
     }
 
     res.json({ message: `${processed} reviews ${status}` });

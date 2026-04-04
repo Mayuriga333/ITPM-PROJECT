@@ -1,5 +1,5 @@
 import React from "react";
-import { FiBook } from "react-icons/fi";
+import { HeartHandshake } from "lucide-react";
 
 const Footer = () => {
   return (
@@ -7,7 +7,7 @@ const Footer = () => {
       <div className="footer-inner">
         <div className="footer-brand">
           <h3>
-            <FiBook style={{ marginRight: 8, verticalAlign: "middle" }} />
+            <HeartHandshake size={18} style={{ marginRight: 8, verticalAlign: "middle", display: "inline" }} />
             EduConnect
           </h3>
           <p>

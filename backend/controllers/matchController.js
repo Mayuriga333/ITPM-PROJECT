@@ -16,6 +16,7 @@
 
 const ChatSession        = require('../models/ChatSession');
 const VolunteerProfile   = require('../models/VolunteerProfile');
+const StudyVolunteer     = require('../models/StudyVolunteer');
 
 const calculateScore = (profile, needs) => {
   let score = 0;
@@ -79,6 +80,11 @@ const getMatches = async (req, res) => {
       });
     }
 
+    // Build a map of userId → StudyVolunteer._id for the "Request Support" button
+    const userIds = activeProfiles.map((p) => p.userId._id);
+    const studyVols = await StudyVolunteer.find({ user: { $in: userIds } }, '_id user');
+    const studyVolMap = new Map(studyVols.map((sv) => [sv.user.toString(), sv._id.toString()]));
+
     const scored = activeProfiles
       .map((profile) => {
         const { score, breakdown } = calculateScore(profile, { subject, topic, preferredTime });
@@ -86,16 +92,17 @@ const getMatches = async (req, res) => {
           score,
           breakdown,
           profile: {
-            _id:             profile._id,
-            userId:          profile.userId._id,
-            name:            profile.userId.name,
-            email:           profile.userId.email,
-            skills:          profile.skills,
-            availability:    profile.availability,
-            experienceLevel: profile.experienceLevel,
-            rating:          profile.rating,
-            bio:             profile.bio,
-            approvalStatus:  profile.approvalStatus,
+            _id:               profile._id,
+            userId:            profile.userId._id,
+            name:              profile.userId.name,
+            email:             profile.userId.email,
+            skills:            profile.skills,
+            availability:      profile.availability,
+            experienceLevel:   profile.experienceLevel,
+            rating:            profile.rating,
+            bio:               profile.bio,
+            approvalStatus:    profile.approvalStatus,
+            studyVolunteerId:  studyVolMap.get(profile.userId._id.toString()) || null,
           },
         };
       })

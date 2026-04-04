@@ -12,7 +12,7 @@ const AdminModeration = () => {
   const [stats, setStats] = useState(null);
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("flagged");
+  const [activeTab, setActiveTab] = useState("all");
   const [selectedReviews, setSelectedReviews] = useState([]);
   const [moderatingId, setModeratingId] = useState(null);
   const [adminNote, setAdminNote] = useState("");
@@ -38,7 +38,7 @@ const AdminModeration = () => {
         data = res.data;
         setTotalPages(res.data.totalPages);
       }
-      setReviews(data.reviews || data);
+      setReviews(Array.isArray(data.reviews) ? data.reviews : Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Failed to load reviews:", err);
     } finally {

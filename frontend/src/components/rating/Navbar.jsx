@@ -1,7 +1,7 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
-import { FiBook } from "react-icons/fi";
+import { HeartHandshake } from "lucide-react";
 
 const Navbar = () => {
   const { user, logout } = useAuth();
@@ -16,7 +16,7 @@ const Navbar = () => {
     <nav className="navbar">
       <div className="navbar-inner">
         <Link to="/rating" className="navbar-logo">
-          <FiBook size={24} />
+          <HeartHandshake size={20} className="text-white" />
           EduConnect
         </Link>
 

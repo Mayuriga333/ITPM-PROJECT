@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Eye, EyeOff, AlertCircle, Hourglass, LogIn, X } from 'lucide-react';
+import { Eye, EyeOff, AlertCircle, Hourglass, LogIn, X, HeartHandshake } from 'lucide-react';
 
 const LoginPage = () => {
   const { login, loading } = useAuth();
@@ -112,8 +112,8 @@ const LoginPage = () => {
           <div className="relative z-10 w-full max-w-sm">
 
             <div className="flex items-center gap-3 mb-8 hover:scale-105 transition-transform duration-300">
-              <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center font-bold text-white text-sm flex-shrink-0 shadow-lg shadow-indigo-500/30">
-                EC
+              <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg shadow-indigo-500/30">
+                <HeartHandshake size={22} className="text-white" />
               </div>
               <span className="text-2xl font-extrabold text-white tracking-tight">Educonnect</span>
             </div>

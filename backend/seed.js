@@ -106,6 +106,21 @@ async function seed() {
       console.log(`✅ P1 Volunteer: ${v.user.name} [${v.profile.approvalStatus}]`);
     }
 
+    // --- Cross-list approved P1 volunteers as StudyVolunteers (enables Request Support from matches page) ---
+    const p1StudyVolMap = {
+      'alice.chen@educonnect.com': { subjects: ['Statistics', 'CS'],    rating: 4.9, ratingCount: 15, totalSessions: 40, availability: 'This Week',    bio: 'PhD in Applied Mathematics with 8 years of teaching experience.', dailySessionLimit: 6, todaysSessions: 0 },
+      'bob.m@educonnect.com':      { subjects: ['Python', 'DSA', 'CS'], rating: 4.7, ratingCount: 12, totalSessions: 30, availability: 'Any Time',     bio: 'Senior software engineer and CS mentor.',                          dailySessionLimit: 6, todaysSessions: 1 },
+      'sarah.j@educonnect.com':    { subjects: ['Statistics', 'CS'],    rating: 4.5, ratingCount: 8,  totalSessions: 18, availability: 'This Week',    bio: 'MSc Chemistry student passionate about teaching.',                  dailySessionLimit: 5, todaysSessions: 0 },
+      'david.k@educonnect.com':    { subjects: ['Statistics', 'CS'],    rating: 5.0, ratingCount: 20, totalSessions: 55, availability: 'This Week',    bio: 'Retired physics professor with 12 yrs experience.',                 dailySessionLimit: 4, todaysSessions: 0 },
+    };
+    for (const [email, volData] of Object.entries(p1StudyVolMap)) {
+      const u = p1Users[email];
+      if (u) {
+        await StudyVolunteer.create({ user: u._id, name: u.name, email: u.email, ...volData });
+        console.log(`✅ P1→StudyVolunteer: ${u.name}`);
+      }
+    }
+
     // ══════════════════════════════════════════════════════════════════════════
     //  2. P2 — Volunteer Rating Profiles, Sessions, Reviews
     // ══════════════════════════════════════════════════════════════════════════
