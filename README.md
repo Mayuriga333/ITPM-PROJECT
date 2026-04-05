@@ -1,4 +1,4 @@
-# Smart Volunteer Platform
+# 🎓 Volunteer-Based Academic Support & Smart Matching Platform
 
 A comprehensive educational volunteer platform that connects students with volunteer tutors for study support, featuring intelligent matching, real-time communication, ratings and reviews, and administrative oversight.
 
