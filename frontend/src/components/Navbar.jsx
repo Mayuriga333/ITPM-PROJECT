@@ -13,7 +13,8 @@ import {
   User, 
   ChevronDown,
   Star,
-  BookOpen
+  BookOpen,
+  Calendar
 } from 'lucide-react';
 import './Navbar.css';
 
@@ -76,6 +77,10 @@ const Navbar = () => {
             <Link to="/study/discovery" className={`nav-item ${isActive('/study/discovery') ? 'active' : ''}`}>
               <BookOpen size={16} />
               <span>Study Support</span>
+            </Link>
+            <Link to="/schedule/manage" className={`nav-item ${isActive('/schedule/manage') ? 'active' : ''}`}>
+              <Calendar size={16} />
+              <span>Schedule</span>
             </Link>
           </div>
         )}
