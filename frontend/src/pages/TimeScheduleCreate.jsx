@@ -13,7 +13,18 @@ import {
   X,
   Bell,
   BellRing,
-  MapPin
+  MapPin,
+  UserPlus,
+  Star,
+  MessageSquare,
+  CheckCircle,
+  AlertCircle,
+  Clock3,
+  CalendarCheck,
+  UserCheck,
+  Users,
+  Search,
+  Filter
 } from 'lucide-react';
 
 const TimeScheduleCreate = () => {
@@ -27,7 +38,8 @@ const TimeScheduleCreate = () => {
     category: 'study',
     priority: 'medium',
     location: '',
-    participants: '',
+    participants: [],
+    participantRequests: [],
     reminder: true,
     reminderTime: '15'
   });
@@ -36,6 +48,13 @@ const TimeScheduleCreate = () => {
   const [showNotificationModal, setShowNotificationModal] = useState(false);
   const [notificationCount, setNotificationCount] = useState(0);
   const [notifiedSchedules, setNotifiedSchedules] = useState(new Set());
+  
+  // Volunteer Selection States
+  const [volunteers, setVolunteers] = useState([]);
+  const [showVolunteerSelector, setShowVolunteerSelector] = useState(false);
+  const [volunteerSearchTerm, setVolunteerSearchTerm] = useState('');
+  const [selectedVolunteers, setSelectedVolunteers] = useState([]);
+  const [volunteerRequests, setVolunteerRequests] = useState([]);
 
   const categories = [
     { value: 'study', label: 'Study Session', icon: BookOpen, color: 'blue' },
@@ -52,9 +71,151 @@ const TimeScheduleCreate = () => {
 
   useEffect(() => {
     checkUpcomingSchedules();
+    loadVolunteers();
     const interval = setInterval(checkUpcomingSchedules, 60000); // Check every minute
     return () => clearInterval(interval);
   }, []);
+
+  const loadVolunteers = () => {
+    // Mock volunteer data - in real app, this would be an API call
+    const mockVolunteers = [
+      {
+        id: 'v1',
+        name: 'Sarah Johnson',
+        email: 'sarah@example.com',
+        skills: ['Mathematics', 'Physics'],
+        availability: ['Morning', 'Afternoon'],
+        rating: 4.8,
+        experienceLevel: 3,
+        totalHours: 120,
+        completedSessions: 45,
+        status: 'active',
+        bio: 'Experienced tutor passionate about helping students succeed'
+      },
+      {
+        id: 'v2',
+        name: 'Michael Chen',
+        email: 'michael@example.com',
+        skills: ['Computer Science', 'Mathematics'],
+        availability: ['Evening', 'Weekend'],
+        rating: 4.6,
+        experienceLevel: 2,
+        totalHours: 85,
+        completedSessions: 32,
+        status: 'active',
+        bio: 'Computer science student with strong math background'
+      },
+      {
+        id: 'v3',
+        name: 'Emily Davis',
+        email: 'emily@example.com',
+        skills: ['English', 'History'],
+        availability: ['Weekday', 'Afternoon'],
+        rating: 4.9,
+        experienceLevel: 4,
+        totalHours: 200,
+        completedSessions: 78,
+        status: 'active',
+        bio: 'Professional educator with 10+ years of experience'
+      },
+      {
+        id: 'v4',
+        name: 'James Wilson',
+        email: 'james@example.com',
+        skills: ['Chemistry', 'Biology'],
+        availability: ['Morning', 'Weekday'],
+        rating: 4.5,
+        experienceLevel: 2,
+        totalHours: 95,
+        completedSessions: 38,
+        status: 'active',
+        bio: 'Science enthusiast with lab experience'
+      }
+    ];
+    setVolunteers(mockVolunteers);
+  };
+
+  const getAvailableVolunteers = () => {
+    if (!formData.date || !formData.startTime) return [];
+    
+    return volunteers.filter(volunteer => {
+      // Check availability match
+      const scheduleTime = new Date(`${formData.date}T${formData.startTime}`);
+      const hour = scheduleTime.getHours();
+      
+      let timeSlot = 'Morning';
+      if (hour >= 12 && hour < 17) timeSlot = 'Afternoon';
+      else if (hour >= 17) timeSlot = 'Evening';
+      else if (hour >= 6 && hour < 12) timeSlot = 'Morning';
+      
+      const isAvailable = volunteer.availability.includes(timeSlot) || 
+                          (hour >= 6 && hour < 18 && volunteer.availability.includes('Weekday')) ||
+                          (hour >= 18 && volunteer.availability.includes('Evening'));
+      
+      // Check skill match (based on category)
+      const categorySkills = {
+        'study': ['Mathematics', 'Physics', 'Chemistry', 'Biology', 'Computer Science'],
+        'meeting': ['Communication', 'Leadership', 'Teamwork'],
+        'assignment': ['Writing', 'Research', 'Analysis'],
+        'break': []
+      };
+      
+      const hasSkill = formData.category === 'break' || 
+                     volunteer.skills.some(skill => 
+                       categorySkills[formData.category]?.includes(skill)
+                     );
+      
+      return isAvailable && hasSkill && volunteer.status === 'active';
+    });
+  };
+
+  const getFilteredVolunteers = () => {
+    const available = getAvailableVolunteers();
+    if (!volunteerSearchTerm) return available;
+    
+    return available.filter(volunteer => 
+      volunteer.name.toLowerCase().includes(volunteerSearchTerm.toLowerCase()) ||
+      volunteer.skills.some(skill => skill.toLowerCase().includes(volunteerSearchTerm.toLowerCase())) ||
+      volunteer.bio.toLowerCase().includes(volunteerSearchTerm.toLowerCase())
+    );
+  };
+
+  const selectVolunteer = (volunteer) => {
+    if (selectedVolunteers.find(v => v.id === volunteer.id)) {
+      setSelectedVolunteers(selectedVolunteers.filter(v => v.id !== volunteer.id));
+    } else {
+      setSelectedVolunteers([...selectedVolunteers, volunteer]);
+    }
+  };
+
+  const requestVolunteer = (volunteer) => {
+    const request = {
+      id: Date.now().toString(),
+      volunteerId: volunteer.id,
+      volunteerName: volunteer.name,
+      scheduleTitle: formData.title,
+      date: formData.date,
+      startTime: formData.startTime,
+      endTime: formData.endTime,
+      category: formData.category,
+      status: 'pending',
+      requestedAt: new Date().toISOString()
+    };
+    
+    setVolunteerRequests([...volunteerRequests, request]);
+    toast.success(`Request sent to ${volunteer.name}`);
+  };
+
+  const removeVolunteerRequest = (requestId) => {
+    setVolunteerRequests(volunteerRequests.filter(req => req.id !== requestId));
+    toast.success('Request cancelled');
+  };
+
+  const getAvailableSubjects = () => {
+    const allSkills = volunteers.flatMap(v => v.skills);
+    const uniqueSkills = [...new Set(allSkills)];
+    return uniqueSkills.sort();
+  };
 
   const checkUpcomingSchedules = () => {
     const schedules = JSON.parse(localStorage.getItem('timeSchedules') || '[]');
@@ -215,10 +376,13 @@ const TimeScheduleCreate = () => {
       return;
     }
 
-    // Create schedule object
+    // Create schedule object with volunteer data
     const newSchedule = {
       id: Date.now().toString(),
       ...formData,
+      participants: selectedVolunteers.map(v => v.name).join(', '),
+      participantIds: selectedVolunteers.map(v => v.id),
+      participantRequests: volunteerRequests,
       createdAt: new Date().toISOString(),
       status: 'upcoming'
     };
@@ -315,19 +479,28 @@ const TimeScheduleCreate = () => {
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Basic Information */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="md:col-span-2">
+                <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Title *
+                    <BookOpen className="w-4 h-4 inline mr-2" />
+                    Subject *
                   </label>
-                  <input
-                    type="text"
+                  <select
                     name="title"
                     value={formData.title}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    placeholder="Enter schedule title"
+                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                     required
-                  />
+                  >
+                    <option value="">Select a subject</option>
+                    {getAvailableSubjects().map(subject => (
+                      <option key={subject} value={subject}>
+                        {subject}
+                      </option>
+                    ))}
+                  </select>
+                  {getAvailableSubjects().length === 0 && (
+                    <p className="mt-1 text-xs text-gray-400">No subjects available from volunteers</p>
+                  )}
                 </div>
 
                 <div className="md:col-span-2">
@@ -454,16 +627,52 @@ const TimeScheduleCreate = () => {
 
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Participants
+                    <Users className="w-4 h-4 inline mr-2" />
+                    Participants & Volunteers
                   </label>
-                  <input
-                    type="text"
-                    name="participants"
-                    value={formData.participants}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    placeholder="Enter participant names (comma separated)"
-                  />
+                  
+                  {/* Selected Volunteers Display */}
+                  <div className="mb-3">
+                    {selectedVolunteers.length > 0 ? (
+                      <div className="flex flex-wrap gap-2 p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+                        {selectedVolunteers.map((volunteer) => (
+                          <div
+                            key={volunteer.id}
+                            className="flex items-center space-x-2 px-3 py-2 bg-green-500/20 rounded-full"
+                          >
+                            <UserCheck className="w-3 h-3 text-green-400" />
+                            <span className="text-sm text-green-300">{volunteer.name}</span>
+                            <button
+                              onClick={() => selectVolunteer(volunteer)}
+                              className="text-green-400 hover:text-green-300"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="p-3 bg-white/5 border border-white/10 rounded-lg">
+                        <p className="text-gray-400 text-sm">No volunteers selected</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Volunteer Selection Button */}
+                  <button
+                    onClick={() => setShowVolunteerSelector(true)}
+                    className="w-full px-4 py-3 bg-gradient-to-r from-green-500/20 to-blue-500/20 hover:from-green-500/30 hover:to-blue-500/30 border border-green-500/30 text-green-400 rounded-lg transition-all flex items-center justify-center space-x-2"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    <span>Select Available Volunteers</span>
+                  </button>
+
+                  {/* Availability Info */}
+                  {formData.date && formData.startTime && (
+                    <div className="mt-2 text-xs text-gray-400">
+                      {getAvailableVolunteers().length} volunteers available for this time slot
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -631,6 +840,199 @@ const TimeScheduleCreate = () => {
                 >
                   Close
                 </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Volunteer Selector Modal */}
+        {showVolunteerSelector && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="card-container p-6 max-w-4xl w-full max-h-[80vh] overflow-y-auto"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center space-x-3">
+                  <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-blue-500 rounded-full flex items-center justify-center">
+                    <UserPlus className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-white">Select Volunteers</h2>
+                    <p className="text-gray-300">
+                      Available for {formData.category} on {formData.date} at {formData.startTime}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowVolunteerSelector(false)}
+                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-400" />
+                </button>
+              </div>
+
+              {/* Search Bar */}
+              <div className="mb-6">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search volunteers by name, skills, or bio..."
+                    value={volunteerSearchTerm}
+                    onChange={(e) => setVolunteerSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              {/* Volunteer List */}
+              <div className="space-y-4 mb-6">
+                {getFilteredVolunteers().length > 0 ? (
+                  getFilteredVolunteers().map((volunteer, index) => (
+                    <motion.div
+                      key={volunteer.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.1 }}
+                      className={`p-4 border rounded-lg transition-all cursor-pointer ${
+                        selectedVolunteers.find(v => v.id === volunteer.id)
+                          ? 'bg-green-500/10 border-green-500/30'
+                          : 'bg-white/5 border-white/10 hover:bg-white/10'
+                      }`}
+                      onClick={() => selectVolunteer(volunteer)}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start space-x-3">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                            selectedVolunteers.find(v => v.id === volunteer.id)
+                              ? 'bg-green-500/20'
+                              : 'bg-blue-500/20'
+                          }`}>
+                            <UserCheck className={`w-5 h-5 ${
+                              selectedVolunteers.find(v => v.id === volunteer.id)
+                                ? 'text-green-400'
+                                : 'text-blue-400'
+                            }`} />
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="text-white font-semibold">{volunteer.name}</h4>
+                            <p className="text-gray-300 text-sm mt-1">{volunteer.bio}</p>
+                            <div className="flex items-center space-x-4 mt-3 text-sm">
+                              <div className="flex items-center text-gray-300">
+                                <Star className="w-4 h-4 mr-1 text-yellow-400" />
+                                {volunteer.rating}
+                              </div>
+                              <div className="flex items-center text-gray-300">
+                                <Clock3 className="w-4 h-4 mr-1 text-blue-400" />
+                                {volunteer.totalHours}h
+                              </div>
+                              <div className="flex items-center text-gray-300">
+                                <CalendarCheck className="w-4 h-4 mr-1 text-green-400" />
+                                {volunteer.completedSessions} sessions
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap gap-2 mt-3">
+                              {volunteer.skills.map((skill, i) => (
+                                <span
+                                  key={i}
+                                  className="px-2 py-1 bg-blue-500/20 text-blue-400 text-xs rounded-full"
+                                >
+                                  {skill}
+                                </span>
+                              ))}
+                            </div>
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {volunteer.availability.map((avail, i) => (
+                                <span
+                                  key={i}
+                                  className="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded-full"
+                                >
+                                  {avail}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex flex-col space-y-2">
+                          {selectedVolunteers.find(v => v.id === volunteer.id) ? (
+                            <div className="px-3 py-1 bg-green-500/20 text-green-400 text-sm rounded-full flex items-center space-x-1">
+                              <CheckCircle className="w-3 h-3" />
+                              <span>Selected</span>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                requestVolunteer(volunteer);
+                              }}
+                              className="px-3 py-1 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 text-sm rounded-lg transition-colors flex items-center space-x-1"
+                            >
+                              <MessageSquare className="w-3 h-3" />
+                              <span>Request</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))
+                ) : (
+                  <div className="text-center py-8">
+                    <AlertCircle className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+                    <h3 className="text-xl font-semibold text-white mb-2">No Available Volunteers</h3>
+                    <p className="text-gray-400">
+                      {!formData.date || !formData.startTime 
+                        ? 'Please select a date and time first to see available volunteers.'
+                        : 'No volunteers are available for this time slot or subject area.'}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Pending Requests */}
+              {volunteerRequests.length > 0 && (
+                <div className="mb-6 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                  <h3 className="text-lg font-semibold text-yellow-400 mb-3">Pending Requests</h3>
+                  <div className="space-y-2">
+                    {volunteerRequests.map((request) => (
+                      <div key={request.id} className="flex items-center justify-between p-2 bg-yellow-500/5 rounded">
+                        <div className="flex items-center space-x-2">
+                          <MessageSquare className="w-4 h-4 text-yellow-400" />
+                          <span className="text-yellow-300 text-sm">
+                            Request sent to {request.volunteerName}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => removeVolunteerRequest(request.id)}
+                          className="text-yellow-400 hover:text-yellow-300"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-between items-center">
+                <div className="text-sm text-gray-400">
+                  {selectedVolunteers.length} volunteers selected • {volunteerRequests.length} requests sent
+                </div>
+                <div className="flex space-x-3">
+                  <button
+                    onClick={() => setShowVolunteerSelector(false)}
+                    className="px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => setShowVolunteerSelector(false)}
+                    className="px-6 py-3 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white rounded-lg transition-all"
+                  >
+                    Done
+                  </button>
+                </div>
               </div>
             </motion.div>
           </div>

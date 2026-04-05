@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { toast } from 'react-hot-toast';
@@ -20,7 +20,29 @@ import {
   Users,
   Bell,
   BellRing,
-  Home
+  Home,
+  BarChart3,
+  TrendingUp,
+  Target,
+  Award,
+  ChevronLeft,
+  ChevronRight,
+  UserPlus,
+  Star,
+  MessageSquare,
+  CheckCircle,
+  AlertCircle,
+  Clock3,
+  CalendarCheck,
+  UserCheck,
+  Activity,
+  Video,
+  VideoOff,
+  Mic,
+  MicOff,
+  Phone,
+  Monitor,
+  Settings
 } from 'lucide-react';
 
 const TimeScheduleManage = () => {
@@ -41,6 +63,40 @@ const TimeScheduleManage = () => {
   const [showNotificationModal, setShowNotificationModal] = useState(false);
   const [notificationCount, setNotificationCount] = useState(0);
   const [notifiedSchedules, setNotifiedSchedules] = useState(new Set());
+  const [selectedSchedules, setSelectedSchedules] = useState(new Set());
+  const [showStats, setShowStats] = useState(true);
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [achievements, setAchievements] = useState({
+    totalSchedules: 0,
+    completedSchedules: 0,
+    streak: 0,
+    points: 0
+  });
+  
+  // Volunteer Integration States
+  const [volunteers, setVolunteers] = useState([]);
+  const [showVolunteerModal, setShowVolunteerModal] = useState(false);
+  const [selectedVolunteer, setSelectedVolunteer] = useState(null);
+  const [volunteerAssignments, setVolunteerAssignments] = useState([]);
+  const [showVolunteerStats, setShowVolunteerStats] = useState(false);
+  const [volunteerStats, setVolunteerStats] = useState({
+    totalVolunteers: 0,
+    activeVolunteers: 0,
+    totalHours: 0,
+    averageRating: 0,
+    completedSessions: 0
+  });
+
+  // Jitsi Meeting States
+  const [showMeetingModal, setShowMeetingModal] = useState(false);
+  const [currentMeeting, setCurrentMeeting] = useState(null);
+  const [jitsiApi, setJitsiApi] = useState(null);
+  const [meetingRoom, setMeetingRoom] = useState('');
+  const [isVideoEnabled, setIsVideoEnabled] = useState(true);
+  const [isAudioEnabled, setIsAudioEnabled] = useState(true);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [meetingParticipants, setMeetingParticipants] = useState([]);
+  const jitsiContainerRef = useRef(null);
 
   const categories = [
     { value: 'study', label: 'Study Session', icon: BookOpen, color: 'blue' },
@@ -55,13 +111,522 @@ const TimeScheduleManage = () => {
     { value: 'high', label: 'High', color: 'red' }
   ];
 
+  const scheduleTemplates = [
+    {
+      id: 'study-session',
+      name: 'Study Session',
+      category: 'study',
+      duration: 120,
+      priority: 'medium',
+      reminder: true,
+      reminderTime: '15'
+    },
+    {
+      id: 'team-meeting',
+      name: 'Team Meeting',
+      category: 'meeting',
+      duration: 60,
+      priority: 'high',
+      reminder: true,
+      reminderTime: '30'
+    },
+    {
+      id: 'assignment-work',
+      name: 'Assignment Work',
+      category: 'assignment',
+      duration: 90,
+      priority: 'high',
+      reminder: true,
+      reminderTime: '15'
+    },
+    {
+      id: 'short-break',
+      name: 'Short Break',
+      category: 'break',
+      duration: 15,
+      priority: 'low',
+      reminder: false
+    }
+  ];
+
+  // Calculate statistics
+  const calculateStats = () => {
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    const thisWeek = getWeekDates(today);
+    const thisMonth = getMonthDates(today);
+
+    const todaySchedules = schedules.filter(s => s.date === todayStr);
+    const weekSchedules = schedules.filter(s => thisWeek.includes(s.date));
+    const monthSchedules = schedules.filter(s => thisMonth.includes(s.date));
+    const completedSchedules = schedules.filter(s => s.status === 'completed');
+    const upcomingSchedules = schedules.filter(s => s.status === 'upcoming');
+    const ongoingSchedules = schedules.filter(s => s.status === 'ongoing');
+
+    // Calculate completion rate
+    const completionRate = schedules.length > 0 
+      ? Math.round((completedSchedules.length / schedules.length) * 100)
+      : 0;
+
+    // Calculate category distribution
+    const categoryStats = categories.map(cat => ({
+      ...cat,
+      count: schedules.filter(s => s.category === cat.value).length,
+      percentage: schedules.length > 0 
+        ? Math.round((schedules.filter(s => s.category === cat.value).length / schedules.length) * 100)
+        : 0
+    }));
+
+    // Calculate streak
+    const streak = calculateStreak();
+
+    // Calculate points
+    const points = calculatePoints(completedSchedules.length, streak);
+
+    return {
+      totalSchedules: schedules.length,
+      todaySchedules: todaySchedules.length,
+      weekSchedules: weekSchedules.length,
+      monthSchedules: monthSchedules.length,
+      completedSchedules: completedSchedules.length,
+      upcomingSchedules: upcomingSchedules.length,
+      ongoingSchedules: ongoingSchedules.length,
+      completionRate,
+      categoryStats,
+      streak,
+      points
+    };
+  };
+
+  const getWeekDates = (date) => {
+    const week = [];
+    const startOfWeek = new Date(date);
+    startOfWeek.setDate(date.getDate() - date.getDay());
+    
+    for (let i = 0; i < 7; i++) {
+      const day = new Date(startOfWeek);
+      day.setDate(startOfWeek.getDate() + i);
+      week.push(day.toISOString().split('T')[0]);
+    }
+    return week;
+  };
+
+  const getMonthDates = (date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const dates = [];
+    
+    for (let d = new Date(firstDay); d <= lastDay; d.setDate(d.getDate() + 1)) {
+      dates.push(d.toISOString().split('T')[0]);
+    }
+    return dates;
+  };
+
+  const calculateStreak = () => {
+    const sortedDates = [...new Set(schedules.map(s => s.date))].sort().reverse();
+    let streak = 0;
+    const today = new Date().toISOString().split('T')[0];
+    
+    for (let i = 0; i < sortedDates.length; i++) {
+      const expectedDate = new Date();
+      expectedDate.setDate(expectedDate.getDate() - i);
+      const expectedDateStr = expectedDate.toISOString().split('T')[0];
+      
+      if (sortedDates.includes(expectedDateStr)) {
+        streak++;
+      } else {
+        break;
+      }
+    }
+    return streak;
+  };
+
+  const calculatePoints = (completedCount, streak) => {
+    return (completedCount * 10) + (streak * 5);
+  };
+
+  // Volunteer Integration Functions
+  const loadVolunteers = () => {
+    // Mock volunteer data - in real app, this would be an API call
+    const mockVolunteers = [
+      {
+        id: 'v1',
+        name: 'Sarah Johnson',
+        email: 'sarah@example.com',
+        skills: ['Mathematics', 'Physics'],
+        availability: ['Morning', 'Afternoon'],
+        rating: 4.8,
+        experienceLevel: 3,
+        totalHours: 120,
+        completedSessions: 45,
+        status: 'active',
+        bio: 'Experienced tutor passionate about helping students succeed'
+      },
+      {
+        id: 'v2',
+        name: 'Michael Chen',
+        email: 'michael@example.com',
+        skills: ['Computer Science', 'Mathematics'],
+        availability: ['Evening', 'Weekend'],
+        rating: 4.6,
+        experienceLevel: 2,
+        totalHours: 85,
+        completedSessions: 32,
+        status: 'active',
+        bio: 'Computer science student with strong math background'
+      },
+      {
+        id: 'v3',
+        name: 'Emily Davis',
+        email: 'emily@example.com',
+        skills: ['English', 'History'],
+        availability: ['Weekday', 'Afternoon'],
+        rating: 4.9,
+        experienceLevel: 4,
+        totalHours: 200,
+        completedSessions: 78,
+        status: 'active',
+        bio: 'Professional educator with 10+ years of experience'
+      }
+    ];
+    setVolunteers(mockVolunteers);
+  };
+
+  const calculateVolunteerStats = () => {
+    const assignments = JSON.parse(localStorage.getItem('volunteerAssignments') || '[]');
+    const activeVolunteers = volunteers.filter(v => v.status === 'active').length;
+    const completedSessions = assignments.filter(a => a.status === 'completed').length;
+    const totalHours = assignments.reduce((sum, a) => sum + (a.duration || 1), 0);
+    const avgRating = volunteers.length > 0 
+      ? volunteers.reduce((sum, v) => sum + v.rating, 0) / volunteers.length 
+      : 0;
+
+    setVolunteerStats({
+      totalVolunteers: volunteers.length,
+      activeVolunteers,
+      totalHours,
+      averageRating: avgRating,
+      completedSessions
+    });
+  };
+
+  const findMatchingVolunteers = (schedule) => {
+    return volunteers.filter(volunteer => {
+      // Check availability match
+      const scheduleTime = new Date(`${schedule.date}T${schedule.startTime}`);
+      const hour = scheduleTime.getHours();
+      
+      let timeSlot = 'Morning';
+      if (hour >= 12 && hour < 17) timeSlot = 'Afternoon';
+      else if (hour >= 17) timeSlot = 'Evening';
+      else if (hour >= 6 && hour < 12) timeSlot = 'Morning';
+      
+      const isAvailable = volunteer.availability.includes(timeSlot) || 
+                          (hour >= 6 && hour < 18 && volunteer.availability.includes('Weekday')) ||
+                          (hour >= 18 && volunteer.availability.includes('Evening'));
+      
+      // Check skill match (based on category)
+      const categorySkills = {
+        'study': ['Mathematics', 'Physics', 'Chemistry', 'Biology', 'Computer Science'],
+        'meeting': ['Communication', 'Leadership', 'Teamwork'],
+        'assignment': ['Writing', 'Research', 'Analysis'],
+        'break': []
+      };
+      
+      const hasSkill = schedule.category === 'break' || 
+                     volunteer.skills.some(skill => 
+                       categorySkills[schedule.category]?.includes(skill)
+                     );
+      
+      return isAvailable && hasSkill && volunteer.status === 'active';
+    });
+  };
+
+  const assignVolunteerToSchedule = (schedule, volunteer) => {
+    const assignment = {
+      id: Date.now().toString(),
+      scheduleId: schedule.id,
+      volunteerId: volunteer.id,
+      volunteerName: volunteer.name,
+      volunteerEmail: volunteer.email,
+      scheduleTitle: schedule.title,
+      date: schedule.date,
+      startTime: schedule.startTime,
+      endTime: schedule.endTime,
+      duration: calculateDuration(schedule.startTime, schedule.endTime),
+      status: 'assigned',
+      assignedAt: new Date().toISOString(),
+      rating: null,
+      feedback: null
+    };
+    
+    const assignments = JSON.parse(localStorage.getItem('volunteerAssignments') || '[]');
+    assignments.push(assignment);
+    localStorage.setItem('volunteerAssignments', JSON.stringify(assignments));
+    
+    // Update schedule with volunteer info
+    const updatedSchedules = schedules.map(s => 
+      s.id === schedule.id 
+        ? { ...s, assignedVolunteer: volunteer, volunteerAssignmentId: assignment.id }
+        : s
+    );
+    localStorage.setItem('timeSchedules', JSON.stringify(updatedSchedules));
+    setSchedules(updatedSchedules);
+    
+    toast.success(`${volunteer.name} assigned to "${schedule.title}"`);
+    setShowVolunteerModal(false);
+  };
+
+  const calculateDuration = (startTime, endTime) => {
+    const start = new Date(`2000-01-01T${startTime}`);
+    const end = new Date(`2000-01-01T${endTime}`);
+    return (end - start) / (1000 * 60 * 60); // hours
+  };
+
+  const updateAssignmentStatus = (assignmentId, status, rating = null, feedback = null) => {
+    const assignments = JSON.parse(localStorage.getItem('volunteerAssignments') || '[]');
+    const updatedAssignments = assignments.map(a => 
+      a.id === assignmentId 
+        ? { ...a, status, rating, feedback, completedAt: status === 'completed' ? new Date().toISOString() : null }
+        : a
+    );
+    localStorage.setItem('volunteerAssignments', JSON.stringify(updatedAssignments));
+    setVolunteerAssignments(updatedAssignments);
+  };
+
+  const getVolunteerForSchedule = (scheduleId) => {
+    const assignments = JSON.parse(localStorage.getItem('volunteerAssignments') || '[]');
+    const assignment = assignments.find(a => a.scheduleId === scheduleId && a.status !== 'cancelled');
+    return assignment;
+  };
+
+  // Jitsi Meeting Functions
+  const generateMeetingRoom = (schedule, volunteer) => {
+    const timestamp = Date.now();
+    const roomName = `${schedule.title.replace(/\s+/g, '-')}-${volunteer.name.replace(/\s+/g, '-')}-${timestamp}`;
+    return roomName.toLowerCase().replace(/[^a-z0-9-]/g, '');
+  };
+
+  const startJitsiMeeting = (schedule, volunteer) => {
+    const roomName = generateMeetingRoom(schedule, volunteer);
+    setMeetingRoom(roomName);
+    setCurrentMeeting({ schedule, volunteer });
+    setShowMeetingModal(true);
+    
+    // Load Jitsi Meet API script if not already loaded
+    if (!window.JitsiMeetExternalAPI) {
+      const script = document.createElement('script');
+      script.src = 'https://meet.jit.si/external_api.js';
+      script.async = true;
+      script.onload = () => initializeJitsiMeeting(roomName, schedule, volunteer);
+      document.head.appendChild(script);
+    } else {
+      initializeJitsiMeeting(roomName, schedule, volunteer);
+    }
+  };
+
+  const initializeJitsiMeeting = (roomName, schedule, volunteer) => {
+    if (!jitsiContainerRef.current) return;
+
+    const domain = 'meet.jit.si';
+    const options = {
+      roomName: roomName,
+      parentNode: jitsiContainerRef.current,
+      width: '100%',
+      height: '100%',
+      configOverwrite: {
+        prejoinPageEnabled: false,
+        startWithAudioMuted: false,
+        startWithVideoMuted: false,
+        subject: `${schedule.title} - ${volunteer.name}`,
+        displayName: 'Student',
+        toolbarButtons: [
+          'microphone', 'camera', 'closedcaptions', 'desktop', 'fullscreen',
+          'fodeviceselection', 'hangup', 'profile', 'info', 'chat', 'recording',
+          'livestreaming', 'etherpad', 'sharedvideo', 'settings', 'raisehand',
+          'videoquality', 'filmstrip', 'invite', 'feedback', 'stats', 'shortcuts',
+          'tileview', 'videobackgroundblur', 'download', 'help', 'mute-everyone', 'e2ee'
+        ],
+        settingsButtons: ['microphone', 'camera', 'captions', 'devices'],
+        enableWelcomePage: false,
+        enableClosePage: false,
+        hideConferenceSubject: false,
+        hideParticipantsStatusbar: false,
+        startScreenSharing: false,
+        enableEmailInStats: false,
+        enableAnalytics: false,
+        p2p: {
+          enabled: true
+        }
+      },
+      interfaceConfigOverwrite: {
+        TOOLBAR_BUTTONS: [
+          'microphone', 'camera', 'closedcaptions', 'desktop', 'fullscreen',
+          'fodeviceselection', 'hangup', 'profile', 'chat', 'recording',
+          'livestreaming', 'etherpad', 'sharedvideo', 'settings', 'raisehand',
+          'videoquality', 'filmstrip', 'invite', 'feedback', 'stats', 'shortcuts',
+          'tileview', 'videobackgroundblur', 'download', 'help', 'mute-everyone'
+        ],
+        SETTINGS_SECTIONS: ['devices', 'language', 'profile', 'moderator'],
+        SHOW_CHROME_EXTENSION_BANNER: false,
+        SHOW_JITI_WATERMARK: false,
+        SHOW_WATERMARK_FOR_GUESTS: false,
+        DEFAULT_REMOTE_DISPLAY_NAME: 'Volunteer',
+        DEFAULT_LOCAL_DISPLAY_NAME: 'You',
+        TOOLBAR_ALWAYS_VISIBLE: true,
+        SHOW_POWERED_BY: false,
+        SHOW_PROMOTIONAL_CLOSE_PAGE: false,
+        RANDOM_AVATAR_URL_PREFIX: false,
+        FILM_STRIP_ONLY: false,
+        VERTICAL_FILMSTRIP: true,
+        SHOW_BRAND_WATERMARK: false,
+        SHOW_DEEP_LINKING_IMAGE: false
+      },
+      userInfo: {
+        displayName: 'Student',
+        email: 'student@example.com'
+      }
+    };
+
+    const api = new window.JitsiMeetExternalAPI(domain, options);
+    setJitsiApi(api);
+
+    // Listen for meeting events
+    api.addEventListener('videoConferenceJoined', (payload) => {
+      console.log('Meeting joined:', payload);
+      toast.success('Meeting started!');
+    });
+
+    api.addEventListener('participantJoined', (payload) => {
+      console.log('Participant joined:', payload);
+      setMeetingParticipants(prev => [...prev, payload.id]);
+      toast.success(`${payload.displayName} joined the meeting`);
+    });
+
+    api.addEventListener('participantLeft', (payload) => {
+      console.log('Participant left:', payload);
+      setMeetingParticipants(prev => prev.filter(id => id !== payload.id));
+      toast.info(`${payload.displayName} left the meeting`);
+    });
+
+    api.addEventListener('videoMuteStatusChanged', (payload) => {
+      setIsVideoEnabled(!payload.muted);
+    });
+
+    api.addEventListener('audioMuteStatusChanged', (payload) => {
+      setIsAudioEnabled(!payload.muted);
+    });
+
+    api.addEventListener('screenSharingStatusChanged', (payload) => {
+      setIsScreenSharing(payload.on);
+      toast.info(payload.on ? 'Screen sharing started' : 'Screen sharing stopped');
+    });
+
+    api.addEventListener('readyToClose', () => {
+      endMeeting();
+    });
+
+    // Save meeting info to localStorage
+    const meetingInfo = {
+      roomName,
+      scheduleId: schedule.id,
+      volunteerId: volunteer.id,
+      volunteerName: volunteer.name,
+      scheduleTitle: schedule.title,
+      startTime: new Date().toISOString(),
+      status: 'active'
+    };
+    
+    const meetings = JSON.parse(localStorage.getItem('activeMeetings') || '[]');
+    meetings.push(meetingInfo);
+    localStorage.setItem('activeMeetings', JSON.stringify(meetings));
+  };
+
+  const toggleVideo = () => {
+    if (jitsiApi) {
+      if (isVideoEnabled) {
+        jitsiApi.executeCommand('toggleVideo');
+      } else {
+        jitsiApi.executeCommand('toggleVideo');
+      }
+    }
+  };
+
+  const toggleAudio = () => {
+    if (jitsiApi) {
+      if (isAudioEnabled) {
+        jitsiApi.executeCommand('toggleAudio');
+      } else {
+        jitsiApi.executeCommand('toggleAudio');
+      }
+    }
+  };
+
+  const toggleScreenShare = () => {
+    if (jitsiApi) {
+      if (isScreenSharing) {
+        jitsiApi.executeCommand('toggleShareScreen');
+      } else {
+        jitsiApi.executeCommand('toggleShareScreen');
+      }
+    }
+  };
+
+  const endMeeting = () => {
+    if (jitsiApi) {
+      jitsiApi.dispose();
+      setJitsiApi(null);
+    }
+    
+    // Update meeting status in localStorage
+    const meetings = JSON.parse(localStorage.getItem('activeMeetings') || '[]');
+    const updatedMeetings = meetings.map(m => 
+      m.roomName === meetingRoom 
+        ? { ...m, endTime: new Date().toISOString(), status: 'ended' }
+        : m
+    );
+    localStorage.setItem('activeMeetings', JSON.stringify(updatedMeetings));
+    
+    setShowMeetingModal(false);
+    setCurrentMeeting(null);
+    setMeetingRoom('');
+    setMeetingParticipants([]);
+    toast.success('Meeting ended');
+  };
+
+  const inviteVolunteerToMeeting = (volunteer, schedule) => {
+    const meetingLink = `https://meet.jit.si/${generateMeetingRoom(schedule, volunteer)}`;
+    
+    // In a real app, this would send an email or notification
+    toast.success(`Meeting link generated: ${meetingLink}`);
+    
+    // Copy to clipboard
+    navigator.clipboard.writeText(meetingLink).then(() => {
+      toast.success('Meeting link copied to clipboard!');
+    }).catch(() => {
+      toast.error('Failed to copy meeting link');
+    });
+  };
+
   useEffect(() => {
     loadSchedules();
+    loadVolunteers();
   }, []);
 
   useEffect(() => {
     filterSchedules();
-  }, [schedules, searchTerm, filterCategory, filterStatus]);
+    calculateVolunteerStats();
+  }, [schedules, searchTerm, filterCategory, filterStatus, volunteers]);
+
+  // Update clock every second
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Check for upcoming schedules every minute
   useEffect(() => {
@@ -281,37 +846,152 @@ const TimeScheduleManage = () => {
     toast.success('Schedule updated successfully!');
   };
 
-  const checkScheduleEnd = () => {
-    const now = new Date();
-    const currentTime = now.getTime();
-    let updatedSchedules = [...schedules];
-    let hasChanges = false;
-
-    updatedSchedules = updatedSchedules.map(schedule => {
-      const scheduleEndTime = new Date(`${schedule.date}T${schedule.endTime}`);
-      
-      if (schedule.status === 'ongoing' && currentTime >= scheduleEndTime.getTime()) {
-        // Schedule just ended
-        const updatedSchedule = { ...schedule, status: 'completed' };
-        hasChanges = true;
-        
-        // Show completion notification
-        toast(`"${schedule.title}" has ended!`, {
-          icon: '✅',
-          duration: 5000
-        });
-        
-        return updatedSchedule;
+  // Bulk operations
+  const toggleScheduleSelection = (scheduleId) => {
+    setSelectedSchedules(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(scheduleId)) {
+        newSet.delete(scheduleId);
+      } else {
+        newSet.add(scheduleId);
       }
-      
-      return schedule;
+      return newSet;
     });
+  };
 
-    if (hasChanges) {
-      localStorage.setItem('timeSchedules', JSON.stringify(updatedSchedules));
-      setSchedules(updatedSchedules);
+  const selectAllSchedules = () => {
+    if (selectedSchedules.size === filteredSchedules.length) {
+      setSelectedSchedules(new Set());
+    } else {
+      setSelectedSchedules(new Set(filteredSchedules.map(s => s.id)));
     }
   };
+
+  const bulkDelete = () => {
+    if (selectedSchedules.size === 0) {
+      toast.error('No schedules selected');
+      return;
+    }
+
+    const updatedSchedules = schedules.filter(s => !selectedSchedules.has(s.id));
+    localStorage.setItem('timeSchedules', JSON.stringify(updatedSchedules));
+    setSchedules(updatedSchedules);
+    setSelectedSchedules(new Set());
+    toast.success(`Deleted ${selectedSchedules.size} schedules`);
+  };
+
+  const bulkComplete = () => {
+    if (selectedSchedules.size === 0) {
+      toast.error('No schedules selected');
+      return;
+    }
+
+    const updatedSchedules = schedules.map(s => 
+      selectedSchedules.has(s.id) ? { ...s, status: 'completed' } : s
+    );
+    localStorage.setItem('timeSchedules', JSON.stringify(updatedSchedules));
+    setSchedules(updatedSchedules);
+    setSelectedSchedules(new Set());
+    toast.success(`Marked ${selectedSchedules.size} schedules as completed`);
+  };
+
+  // Export/Import functionality
+  const exportSchedules = () => {
+    const dataStr = JSON.stringify(schedules, null, 2);
+    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+    const exportFileDefaultName = `schedules_${new Date().toISOString().split('T')[0]}.json`;
+    const linkElement = document.createElement('a');
+    linkElement.setAttribute('href', dataUri);
+    linkElement.setAttribute('download', exportFileDefaultName);
+    linkElement.click();
+    toast.success('Schedules exported successfully!');
+  };
+
+  const importSchedules = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const importedSchedules = JSON.parse(e.target.result);
+        const mergedSchedules = [...schedules, ...importedSchedules];
+        localStorage.setItem('timeSchedules', JSON.stringify(mergedSchedules));
+        setSchedules(mergedSchedules);
+        toast.success(`Imported ${importedSchedules.length} schedules!`);
+      } catch (error) {
+        toast.error('Invalid file format');
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  // Template functionality
+  const applyTemplate = (template) => {
+    const now = new Date();
+    const startTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const endTime = new Date(now.getTime() + template.duration * 60000);
+    const endTimeStr = `${String(endTime.getHours()).padStart(2, '0')}:${String(endTime.getMinutes()).padStart(2, '0')}`;
+
+    const newSchedule = {
+      id: Date.now().toString(),
+      title: template.name,
+      description: '',
+      date: now.toISOString().split('T')[0],
+      startTime,
+      endTime: endTimeStr,
+      category: template.category,
+      priority: template.priority,
+      location: '',
+      participants: '',
+      reminder: template.reminder,
+      reminderTime: template.reminderTime,
+      status: 'upcoming',
+      createdAt: new Date().toISOString()
+    };
+
+    const updatedSchedules = [...schedules, newSchedule];
+    localStorage.setItem('timeSchedules', JSON.stringify(updatedSchedules));
+    setSchedules(updatedSchedules);
+    toast.success(`Created schedule from template: ${template.name}`);
+    setShowTemplates(false);
+  };
+
+  // Calendar navigation
+  const navigateCalendar = (direction) => {
+    const newDate = new Date(currentDate);
+    if (direction === 'prev') {
+      newDate.setMonth(newDate.getMonth() - 1);
+    } else {
+      newDate.setMonth(newDate.getMonth() + 1);
+    }
+    setCurrentDate(newDate);
+  };
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyPress = (e) => {
+      if (e.ctrlKey || e.metaKey) {
+        switch(e.key) {
+          case 'n':
+            e.preventDefault();
+            navigate('/schedule/create');
+            break;
+          case 'a':
+            e.preventDefault();
+            selectAllSchedules();
+            break;
+          case 'e':
+            e.preventDefault();
+            exportSchedules();
+            break;
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [schedules, filteredSchedules, selectedSchedules]);
 
   const handleDelete = (schedule) => {
     setScheduleToDelete(schedule);
@@ -391,8 +1071,42 @@ const TimeScheduleManage = () => {
               <h1 className="text-3xl font-bold text-white">Manage Schedules</h1>
               <p className="text-gray-300 mt-1">View, edit, and manage your time schedules</p>
             </div>
+            
+            {/* Real-time Clock */}
+            <div className="hidden sm:block ml-8 pl-8 border-l border-white/20">
+              <div className="flex flex-col items-end">
+                <div className="flex items-center space-x-2 text-white">
+                  <Clock className="w-4 h-4 text-purple-400" />
+                  <span className="text-lg font-mono font-semibold">
+                    {currentTime.toLocaleTimeString('en-US', { 
+                      hour: '2-digit', 
+                      minute: '2-digit',
+                      second: '2-digit',
+                      hour12: true 
+                    })}
+                  </span>
+                </div>
+                <span className="text-xs text-gray-400">
+                  {currentTime.toLocaleDateString('en-US', { 
+                    weekday: 'short',
+                    month: 'short', 
+                    day: 'numeric',
+                    year: 'numeric'
+                  })}
+                </span>
+              </div>
+            </div>
           </div>
           <div className="flex items-center space-x-3 mt-4 sm:mt-0">
+            {/* Volunteer Stats Button */}
+            <button
+              onClick={() => setShowVolunteerStats(true)}
+              className="p-3 rounded-lg bg-gradient-to-r from-green-500/20 to-blue-500/20 hover:from-green-500/30 hover:to-blue-500/30 transition-all transform hover:scale-105 border border-green-500/30"
+              title="Volunteer Statistics"
+            >
+              <UserCheck className="w-5 h-5 text-green-400" />
+            </button>
+
             {/* Notification Icon */}
             <div className="relative">
               <button
@@ -415,6 +1129,7 @@ const TimeScheduleManage = () => {
                 )}
               </button>
             </div>
+
             <button
               onClick={() => navigate('/schedule/create')}
               className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-lg transition-all transform hover:scale-105 flex items-center space-x-2"
@@ -424,6 +1139,204 @@ const TimeScheduleManage = () => {
             </button>
           </div>
         </motion.div>
+
+        {/* Dashboard Statistics */}
+        {showStats && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="mb-8"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-white flex items-center">
+                <BarChart3 className="w-5 h-5 mr-2 text-purple-400" />
+                Dashboard Overview
+              </h2>
+              <button
+                onClick={() => setShowStats(!showStats)}
+                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+              >
+                <X className="w-4 h-4 text-gray-400" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+              {/* Total Schedules */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.1 }}
+                className="card-container p-6"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-400 text-sm">Total Schedules</p>
+                    <p className="text-3xl font-bold text-white mt-1">{schedules.length}</p>
+                    <p className="text-green-400 text-sm mt-2 flex items-center">
+                      <TrendingUp className="w-3 h-3 mr-1" />
+                      All time
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 bg-purple-500/20 rounded-lg flex items-center justify-center">
+                    <Calendar className="w-6 h-6 text-purple-400" />
+                  </div>
+                </div>
+              </motion.div>
+
+              {/* Today's Schedules */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.2 }}
+                className="card-container p-6"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-400 text-sm">Today</p>
+                    <p className="text-3xl font-bold text-white mt-1">
+                      {schedules.filter(s => s.date === new Date().toISOString().split('T')[0]).length}
+                    </p>
+                    <p className="text-blue-400 text-sm mt-2 flex items-center">
+                      <Clock className="w-3 h-3 mr-1" />
+                      {new Date().toLocaleDateString('en-US', { weekday: 'short' })}
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 bg-blue-500/20 rounded-lg flex items-center justify-center">
+                    <Target className="w-6 h-6 text-blue-400" />
+                  </div>
+                </div>
+              </motion.div>
+
+              {/* Completion Rate */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.3 }}
+                className="card-container p-6"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-400 text-sm">Completion Rate</p>
+                    <p className="text-3xl font-bold text-white mt-1">
+                      {schedules.length > 0 
+                        ? Math.round((schedules.filter(s => s.status === 'completed').length / schedules.length) * 100)
+                        : 0}%
+                    </p>
+                    <p className="text-green-400 text-sm mt-2 flex items-center">
+                      <Award className="w-3 h-3 mr-1" />
+                      {schedules.filter(s => s.status === 'completed').length} completed
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 bg-green-500/20 rounded-lg flex items-center justify-center">
+                    <TrendingUp className="w-6 h-6 text-green-400" />
+                  </div>
+                </div>
+              </motion.div>
+
+              {/* Streak & Points */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.4 }}
+                className="card-container p-6"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-400 text-sm">Streak</p>
+                    <p className="text-3xl font-bold text-white mt-1">{calculateStreak()} days</p>
+                    <p className="text-yellow-400 text-sm mt-2 flex items-center">
+                      <Award className="w-3 h-3 mr-1" />
+                      {calculatePoints(schedules.filter(s => s.status === 'completed').length, calculateStreak())} points
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 bg-yellow-500/20 rounded-lg flex items-center justify-center">
+                    <Award className="w-6 h-6 text-yellow-400" />
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+
+            {/* Category Distribution */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.5 }}
+                className="card-container p-6"
+              >
+                <h3 className="text-lg font-semibold text-white mb-4">Category Distribution</h3>
+                <div className="space-y-3">
+                  {categories.map((category, index) => {
+                    const count = schedules.filter(s => s.category === category.value).length;
+                    const percentage = schedules.length > 0 ? Math.round((count / schedules.length) * 100) : 0;
+                    const CategoryIcon = category.icon;
+                    
+                    return (
+                      <div key={category.value} className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className={`w-8 h-8 bg-${category.color}-500/20 rounded-lg flex items-center justify-center`}>
+                            <CategoryIcon className={`w-4 h-4 text-${category.color}-400`} />
+                          </div>
+                          <span className="text-gray-300">{category.label}</span>
+                        </div>
+                        <div className="flex items-center space-x-3">
+                          <div className="w-24 bg-white/10 rounded-full h-2">
+                            <div
+                              className={`bg-${category.color}-500 h-2 rounded-full`}
+                              style={{ width: `${percentage}%` }}
+                            />
+                          </div>
+                          <span className="text-gray-400 text-sm w-12 text-right">{percentage}%</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </motion.div>
+
+              {/* Weekly Overview */}
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.6 }}
+                className="card-container p-6"
+              >
+                <h3 className="text-lg font-semibold text-white mb-4">This Week</h3>
+                <div className="grid grid-cols-7 gap-2">
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, index) => {
+                    const date = new Date();
+                    date.setDate(date.getDate() - date.getDay() + index);
+                    const dateStr = date.toISOString().split('T')[0];
+                    const daySchedules = schedules.filter(s => s.date === dateStr);
+                    const isToday = dateStr === new Date().toISOString().split('T')[0];
+                    
+                    return (
+                      <div
+                        key={day}
+                        className={`text-center p-2 rounded-lg ${
+                          isToday ? 'bg-purple-500/20 border border-purple-500' : 'bg-white/5'
+                        }`}
+                      >
+                        <p className="text-xs text-gray-400 mb-1">{day}</p>
+                        <p className="text-sm text-white mb-1">{date.getDate()}</p>
+                        <div className="flex justify-center space-x-1">
+                          {daySchedules.slice(0, 3).map((_, i) => (
+                            <div
+                              key={i}
+                              className="w-1 h-1 bg-purple-400 rounded-full"
+                            />
+                          ))}
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1">{daySchedules.length}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            </div>
+          </motion.div>
+        )}
 
         {/* Filters */}
         <motion.div
@@ -539,6 +1452,81 @@ const TimeScheduleManage = () => {
                     {schedule.description}
                   </p>
                 )}
+
+                {/* Volunteer Assignment Section */}
+                <div className="mb-4 p-3 bg-white/5 rounded-lg border border-white/10">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-gray-300 flex items-center">
+                      <UserPlus className="w-4 h-4 mr-2 text-green-400" />
+                      Volunteer Assignment
+                    </span>
+                  </div>
+                  
+                  {getVolunteerForSchedule(schedule.id) ? (
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-8 h-8 bg-green-500/20 rounded-full flex items-center justify-center">
+                          <UserCheck className="w-4 h-4 text-green-400" />
+                        </div>
+                        <div>
+                          <p className="text-sm text-white font-medium">
+                            {getVolunteerForSchedule(schedule.id).volunteerName}
+                          </p>
+                          <div className="flex items-center space-x-2 text-xs text-gray-400">
+                            <Star className="w-3 h-3 text-yellow-400" />
+                            <span>4.8</span>
+                            <span>•</span>
+                            <span>{getVolunteerForSchedule(schedule.id).duration}h</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <button
+                          onClick={() => startJitsiMeeting(schedule, getVolunteerForSchedule(schedule.id))}
+                          className="p-1 text-blue-400 hover:text-blue-300 hover:bg-white/10 rounded transition-colors"
+                          title="Start video meeting"
+                        >
+                          <Video className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => inviteVolunteerToMeeting(getVolunteerForSchedule(schedule.id), schedule)}
+                          className="p-1 text-purple-400 hover:text-purple-300 hover:bg-white/10 rounded transition-colors"
+                          title="Invite to meeting"
+                        >
+                          <MessageSquare className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => updateAssignmentStatus(getVolunteerForSchedule(schedule.id).id, 'completed')}
+                          className="p-1 text-green-400 hover:text-green-300 hover:bg-white/10 rounded transition-colors"
+                          title="Mark as completed"
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => updateAssignmentStatus(getVolunteerForSchedule(schedule.id).id, 'cancelled')}
+                          className="p-1 text-red-400 hover:text-red-300 hover:bg-white/10 rounded transition-colors"
+                          title="Cancel assignment"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm text-gray-400">No volunteer assigned</p>
+                      <button
+                        onClick={() => {
+                          setSelectedVolunteer(schedule);
+                          setShowVolunteerModal(true);
+                        }}
+                        className="px-3 py-1 bg-green-500/20 hover:bg-green-500/30 text-green-400 text-sm rounded-lg transition-colors flex items-center space-x-1"
+                      >
+                        <UserPlus className="w-3 h-3" />
+                        <span>Assign</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
 
                 <div className="flex items-center justify-between pt-4 border-t border-white/10">
                   <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(schedule.status)} bg-opacity-20 text-white`}>
@@ -1026,6 +2014,462 @@ const TimeScheduleManage = () => {
                 >
                   Close
                 </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Volunteer Assignment Modal */}
+        {showVolunteerModal && selectedVolunteer && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="card-container p-6 max-w-3xl w-full max-h-[80vh] overflow-y-auto"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center space-x-3">
+                  <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-blue-500 rounded-full flex items-center justify-center">
+                    <UserPlus className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-white">Assign Volunteer</h2>
+                    <p className="text-gray-300">
+                      Schedule: "{selectedVolunteer.title}" • {selectedVolunteer.date} • {selectedVolunteer.startTime}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowVolunteerModal(false)}
+                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-400" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {findMatchingVolunteers(selectedVolunteer).length > 0 ? (
+                  findMatchingVolunteers(selectedVolunteer).map((volunteer, index) => (
+                    <motion.div
+                      key={volunteer.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.1 }}
+                      className="p-4 bg-gradient-to-r from-green-500/10 to-blue-500/10 border border-green-500/30 rounded-lg"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start space-x-3">
+                          <div className="w-10 h-10 bg-green-500/20 rounded-full flex items-center justify-center">
+                            <UserCheck className="w-5 h-5 text-green-400" />
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="text-white font-semibold">{volunteer.name}</h4>
+                            <p className="text-gray-300 text-sm mt-1">{volunteer.bio}</p>
+                            <div className="flex items-center space-x-4 mt-3 text-sm">
+                              <div className="flex items-center text-gray-300">
+                                <Star className="w-4 h-4 mr-1 text-yellow-400" />
+                                {volunteer.rating}
+                              </div>
+                              <div className="flex items-center text-gray-300">
+                                <Clock3 className="w-4 h-4 mr-1 text-blue-400" />
+                                {volunteer.totalHours}h
+                              </div>
+                              <div className="flex items-center text-gray-300">
+                                <CalendarCheck className="w-4 h-4 mr-1 text-green-400" />
+                                {volunteer.completedSessions} sessions
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap gap-2 mt-3">
+                              {volunteer.skills.map((skill, i) => (
+                                <span
+                                  key={i}
+                                  className="px-2 py-1 bg-blue-500/20 text-blue-400 text-xs rounded-full"
+                                >
+                                  {skill}
+                                </span>
+                              ))}
+                            </div>
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {volunteer.availability.map((avail, i) => (
+                                <span
+                                  key={i}
+                                  className="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded-full"
+                                >
+                                  {avail}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex flex-col space-y-2">
+                          <button
+                            onClick={() => assignVolunteerToSchedule(selectedVolunteer, volunteer)}
+                            className="px-4 py-2 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white rounded-lg transition-all flex items-center space-x-2"
+                          >
+                            <UserPlus className="w-4 h-4" />
+                            <span>Assign</span>
+                          </button>
+                          <button
+                            onClick={() => {/* Message volunteer */}}
+                            className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors flex items-center space-x-2"
+                          >
+                            <MessageSquare className="w-4 h-4" />
+                            <span>Message</span>
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))
+                ) : (
+                  <div className="text-center py-8">
+                    <AlertCircle className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+                    <h3 className="text-xl font-semibold text-white mb-2">No Available Volunteers</h3>
+                    <p className="text-gray-400">
+                      No volunteers are available for this time slot or subject area.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end mt-6 pt-6 border-t border-white/10">
+                <button
+                  onClick={() => setShowVolunteerModal(false)}
+                  className="px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Volunteer Statistics Modal */}
+        {showVolunteerStats && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="card-container p-6 max-w-4xl w-full max-h-[80vh] overflow-y-auto"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center space-x-3">
+                  <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-blue-500 rounded-full flex items-center justify-center">
+                    <Activity className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-white">Volunteer Statistics</h2>
+                    <p className="text-gray-300">Overview of volunteer performance and engagement</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowVolunteerStats(false)}
+                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-400" />
+                </button>
+              </div>
+
+              {/* Stats Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.1 }}
+                  className="card-container p-6"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-gray-400 text-sm">Total Volunteers</p>
+                      <p className="text-3xl font-bold text-white mt-1">{volunteerStats.totalVolunteers}</p>
+                      <p className="text-green-400 text-sm mt-2 flex items-center">
+                        <UserCheck className="w-3 h-3 mr-1" />
+                        Active system
+                      </p>
+                    </div>
+                    <div className="w-12 h-12 bg-blue-500/20 rounded-lg flex items-center justify-center">
+                      <Users className="w-6 h-6 text-blue-400" />
+                    </div>
+                  </div>
+                </motion.div>
+
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.2 }}
+                  className="card-container p-6"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-gray-400 text-sm">Active Volunteers</p>
+                      <p className="text-3xl font-bold text-white mt-1">{volunteerStats.activeVolunteers}</p>
+                      <p className="text-green-400 text-sm mt-2 flex items-center">
+                        <CheckCircle className="w-3 h-3 mr-1" />
+                        Available now
+                      </p>
+                    </div>
+                    <div className="w-12 h-12 bg-green-500/20 rounded-lg flex items-center justify-center">
+                      <UserCheck className="w-6 h-6 text-green-400" />
+                    </div>
+                  </div>
+                </motion.div>
+
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.3 }}
+                  className="card-container p-6"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-gray-400 text-sm">Total Hours</p>
+                      <p className="text-3xl font-bold text-white mt-1">{volunteerStats.totalHours}</p>
+                      <p className="text-blue-400 text-sm mt-2 flex items-center">
+                        <Clock3 className="w-3 h-3 mr-1" />
+                        This month
+                      </p>
+                    </div>
+                    <div className="w-12 h-12 bg-purple-500/20 rounded-lg flex items-center justify-center">
+                      <Clock3 className="w-6 h-6 text-purple-400" />
+                    </div>
+                  </div>
+                </motion.div>
+
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.4 }}
+                  className="card-container p-6"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-gray-400 text-sm">Avg Rating</p>
+                      <p className="text-3xl font-bold text-white mt-1">{volunteerStats.averageRating.toFixed(1)}</p>
+                      <p className="text-yellow-400 text-sm mt-2 flex items-center">
+                        <Star className="w-3 h-3 mr-1" />
+                        Excellent
+                      </p>
+                    </div>
+                    <div className="w-12 h-12 bg-yellow-500/20 rounded-lg flex items-center justify-center">
+                      <Star className="w-6 h-6 text-yellow-400" />
+                    </div>
+                  </div>
+                </motion.div>
+              </div>
+
+              {/* Volunteer List */}
+              <div className="card-container p-6">
+                <h3 className="text-lg font-semibold text-white mb-4">Volunteer Performance</h3>
+                <div className="space-y-3">
+                  {volunteers.map((volunteer, index) => (
+                    <motion.div
+                      key={volunteer.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.1 }}
+                      className="p-4 bg-white/5 rounded-lg border border-white/10"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 bg-green-500/20 rounded-full flex items-center justify-center">
+                            <UserCheck className="w-5 h-5 text-green-400" />
+                          </div>
+                          <div>
+                            <h4 className="text-white font-medium">{volunteer.name}</h4>
+                            <div className="flex items-center space-x-4 text-sm text-gray-400 mt-1">
+                              <span>{volunteer.completedSessions} sessions</span>
+                              <span>•</span>
+                              <span>{volunteer.totalHours}h</span>
+                              <span>•</span>
+                              <div className="flex items-center">
+                                <Star className="w-3 h-3 text-yellow-400 mr-1" />
+                                {volunteer.rating}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <span className={`px-2 py-1 text-xs rounded-full ${
+                            volunteer.status === 'active' 
+                              ? 'bg-green-500/20 text-green-400' 
+                              : 'bg-gray-500/20 text-gray-400'
+                          }`}>
+                            {volunteer.status}
+                          </span>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex justify-end mt-6 pt-6 border-t border-white/10">
+                <button
+                  onClick={() => setShowVolunteerStats(false)}
+                  className="px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Jitsi Meeting Modal */}
+        {showMeetingModal && currentMeeting && (
+          <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="w-full h-full max-w-7xl max-h-[95vh] bg-slate-900 rounded-xl overflow-hidden"
+            >
+              {/* Meeting Header */}
+              <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-4 flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <Video className="w-5 h-5 text-white" />
+                  <div>
+                    <h3 className="text-white font-semibold">
+                      {currentMeeting.schedule.title} - {currentMeeting.volunteer.name}
+                    </h3>
+                    <p className="text-blue-100 text-sm">
+                      Meeting Room: {meetingRoom}
+                    </p>
+                  </div>
+                </div>
+                
+                {/* Meeting Controls */}
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={toggleAudio}
+                    className={`p-2 rounded-lg transition-colors ${
+                      isAudioEnabled 
+                        ? 'bg-white/20 text-white hover:bg-white/30' 
+                        : 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
+                    }`}
+                    title={isAudioEnabled ? 'Mute microphone' : 'Unmute microphone'}
+                  >
+                    {isAudioEnabled ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
+                  </button>
+                  
+                  <button
+                    onClick={toggleVideo}
+                    className={`p-2 rounded-lg transition-colors ${
+                      isVideoEnabled 
+                        ? 'bg-white/20 text-white hover:bg-white/30' 
+                        : 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
+                    }`}
+                    title={isVideoEnabled ? 'Turn off camera' : 'Turn on camera'}
+                  >
+                    {isVideoEnabled ? <Video className="w-4 h-4" /> : <VideoOff className="w-4 h-4" />}
+                  </button>
+                  
+                  <button
+                    onClick={toggleScreenShare}
+                    className={`p-2 rounded-lg transition-colors ${
+                      isScreenSharing 
+                        ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' 
+                        : 'bg-white/20 text-white hover:bg-white/30'
+                    }`}
+                    title={isScreenSharing ? 'Stop screen sharing' : 'Share screen'}
+                  >
+                    <Monitor className="w-4 h-4" />
+                  </button>
+                  
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(`https://meet.jit.si/${meetingRoom}`);
+                      toast.success('Meeting link copied to clipboard!');
+                    }}
+                    className="p-2 bg-white/20 text-white rounded-lg hover:bg-white/30 transition-colors"
+                    title="Copy meeting link"
+                  >
+                    <Users className="w-4 h-4" />
+                  </button>
+                  
+                  <button
+                    onClick={endMeeting}
+                    className="p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                    title="End meeting"
+                  >
+                    <Phone className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Jitsi Container */}
+              <div className="flex-1 relative bg-black">
+                <div
+                  ref={jitsiContainerRef}
+                  className="w-full h-full"
+                  style={{ minHeight: '500px' }}
+                />
+                
+                {/* Meeting Info Overlay */}
+                <div className="absolute top-4 left-4 bg-black/50 backdrop-blur-sm p-3 rounded-lg">
+                  <div className="text-white text-sm">
+                    <div className="flex items-center space-x-2 mb-1">
+                      <UserCheck className="w-4 h-4 text-green-400" />
+                      <span>{currentMeeting.volunteer.name}</span>
+                    </div>
+                    <div className="flex items-center space-x-2 mb-1">
+                      <Calendar className="w-4 h-4 text-blue-400" />
+                      <span>{currentMeeting.schedule.date}</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Clock className="w-4 h-4 text-purple-400" />
+                      <span>{currentMeeting.schedule.startTime} - {currentMeeting.schedule.endTime}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Participants Count */}
+                {meetingParticipants.length > 0 && (
+                  <div className="absolute top-4 right-4 bg-black/50 backdrop-blur-sm p-3 rounded-lg">
+                    <div className="flex items-center space-x-2 text-white">
+                      <Users className="w-4 h-4 text-blue-400" />
+                      <span className="text-sm">{meetingParticipants.length + 1} participants</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Meeting Footer */}
+              <div className="bg-slate-800 p-4 flex items-center justify-between">
+                <div className="text-sm text-gray-400">
+                  <div className="flex items-center space-x-4">
+                    <span className="flex items-center space-x-1">
+                      <div className={`w-2 h-2 rounded-full ${isAudioEnabled ? 'bg-green-500' : 'bg-red-500'}`} />
+                      <span>Microphone {isAudioEnabled ? 'On' : 'Off'}</span>
+                    </span>
+                    <span className="flex items-center space-x-1">
+                      <div className={`w-2 h-2 rounded-full ${isVideoEnabled ? 'bg-green-500' : 'bg-red-500'}`} />
+                      <span>Camera {isVideoEnabled ? 'On' : 'Off'}</span>
+                    </span>
+                    {isScreenSharing && (
+                      <span className="flex items-center space-x-1">
+                        <div className="w-2 h-2 rounded-full bg-blue-500" />
+                        <span>Screen Sharing</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(`https://meet.jit.si/${meetingRoom}`);
+                      toast.success('Meeting link copied to clipboard!');
+                    }}
+                    className="px-3 py-1 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-colors text-sm"
+                  >
+                    Copy Link
+                  </button>
+                  <button
+                    onClick={endMeeting}
+                    className="px-3 py-1 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors text-sm"
+                  >
+                    End Meeting
+                  </button>
+                </div>
               </div>
             </motion.div>
           </div>
