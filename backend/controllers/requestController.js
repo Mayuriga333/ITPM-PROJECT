@@ -459,6 +459,8 @@ exports.addReview = async (req, res) => {
     const VALID_TAGS = ['positive', 'neutral', 'needs_improvement'];
     const VALID_EXPERIENCE_TYPES = ['practice', 'review', 'new_learning'];
 
+    const VALID_VISIBILITY = ['public', 'private'];
+
     const {
       rating,
       reviewText,
@@ -469,7 +471,11 @@ exports.addReview = async (req, res) => {
       experienceType,
       recommendation,
       isAnonymous,
+      feedbackVisibility,
     } = req.body;
+
+    // ── Validate visibility ──
+    const normalizedVisibility = VALID_VISIBILITY.includes(feedbackVisibility) ? feedbackVisibility : 'public';
 
     // ── Validate rating ──
     const numRating = Number(rating);
@@ -633,6 +639,14 @@ exports.addReview = async (req, res) => {
         }
       : { fileName: '', fileUrl: '', mimeType: '', size: 0 };
 
+    // ── Compute goal alignment score ──
+    const tagScore = normalizedTags.includes('positive') ? 20
+      : normalizedTags.includes('neutral') ? 10 : 0;
+    const goalAlignmentScore = Math.min(
+      100,
+      Math.round((numRating / 5) * 60 + (normalizedFollowUp ? 20 : 0) + tagScore)
+    );
+
     // ── Save review on request ──
     request.rating = numRating;
     request.reviewText = normalizedReviewText;
@@ -644,6 +658,8 @@ exports.addReview = async (req, res) => {
     request.attachment = attachment;
     request.recommendation = normalizedRecommendation;
     request.isAnonymous = isAnonymous || false;
+    request.feedbackVisibility = normalizedVisibility;
+    request.goalAlignmentScore = goalAlignmentScore;
     request.moderationStatus = reviewStatus;
     request.flagReason = flagReason;
     request.moderationScore = moderationScore;
@@ -714,5 +730,47 @@ exports.deleteRequest = async (req, res) => {
       message: 'Internal server error',
       errors: [{ path: null, message: error.message }],
     });
+  }
+};
+
+// ─────────────────────────────────────────────────────────
+// Feedback History — all feedback a student has given
+// GET /api/requests/feedback-history?studentId=<id>
+// ─────────────────────────────────────────────────────────
+exports.getFeedbackHistory = async (req, res) => {
+  try {
+    const { studentId, studentName } = req.query;
+
+    // Build the same OR-query used by getStudentRequests so all matching
+    // requests are found regardless of whether the student ObjectId was saved.
+    let query;
+    if (studentId && mongoose.Types.ObjectId.isValid(studentId)) {
+      query = studentName
+        ? { $or: [{ student: studentId }, { studentName }] }
+        : { student: studentId };
+    } else if (studentName) {
+      query = { studentName };
+    } else {
+      return res.status(400).json({ success: false, message: 'Provide studentId or studentName' });
+    }
+
+    // Filter to requests that actually have a review
+    query.rating = { $gt: 0 };
+
+    const given = await SupportRequest.find(query)
+      .sort({ reviewCreatedAt: -1 })
+      .select(
+        'volunteerName subject rating reviewText reviewSubject feedbackTags ' +
+        'followUpMatchAgain experienceType reviewSessionDate recommendation ' +
+        'isAnonymous feedbackVisibility goalAlignmentScore moderationStatus reviewCreatedAt'
+      )
+      .lean();
+
+    res.json({
+      success: true,
+      data: { given },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   }
 };

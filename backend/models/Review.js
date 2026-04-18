@@ -80,6 +80,11 @@ const reviewSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    feedbackVisibility: {
+      type: String,
+      enum: ['public', 'private'],
+      default: 'public',
+    },
     // Moderation
     status: {
       type: String,

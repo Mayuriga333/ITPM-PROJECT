@@ -5,7 +5,8 @@ const {
   getVolunteers,
   getVolunteerById,
   getVolunteerRequests,
-  getVolunteerStats
+  getVolunteerStats,
+  getVolunteerPublicReviews,
 } = require('../controllers/studyVolunteerController');
 
 // Study volunteer registration
@@ -13,6 +14,9 @@ router.post('/register', registerVolunteer);
 
 // Get all study volunteers with filters
 router.get('/', getVolunteers);
+
+// Public reviews for a volunteer profile
+router.get('/:id/reviews', getVolunteerPublicReviews);
 
 // Get study volunteer by ID
 router.get('/:id', getVolunteerById);

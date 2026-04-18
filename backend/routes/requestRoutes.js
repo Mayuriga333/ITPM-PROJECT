@@ -10,7 +10,8 @@ const {
   rejectRequest,
   completeRequest,
   addReview,
-  deleteRequest
+  deleteRequest,
+  getFeedbackHistory,
 } = require('../controllers/requestController');
 
 // Shared validation helpers
@@ -67,6 +68,9 @@ const validateCreateRequest = (req, res, next) => {
 
   next();
 };
+
+// Feedback history for a student
+router.get('/feedback-history', getFeedbackHistory);
 
 // Create new support request
 router.post('/', validateCreateRequest, createRequest);

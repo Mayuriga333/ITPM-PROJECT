@@ -102,6 +102,34 @@ exports.getVolunteerRequests = async (req, res) => {
   }
 };
 
+// Get public reviews for a study volunteer
+exports.getVolunteerPublicReviews = async (req, res) => {
+  try {
+    const reviews = await SupportRequest.find({
+      volunteer: req.params.id,
+      rating: { $gt: 0 },
+      feedbackVisibility: { $ne: 'private' },
+      moderationStatus: { $ne: 'rejected' },
+    })
+      .sort({ reviewCreatedAt: -1 })
+      .select(
+        'studentName isAnonymous rating reviewText reviewSubject feedbackTags ' +
+        'followUpMatchAgain experienceType reviewSessionDate goalAlignmentScore reviewCreatedAt'
+      )
+      .lean();
+
+    // Mask name if anonymous
+    const sanitized = reviews.map((r) => ({
+      ...r,
+      studentName: r.isAnonymous ? 'Anonymous' : r.studentName,
+    }));
+
+    res.json({ success: true, data: sanitized });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 // Get study volunteer dashboard stats
 exports.getVolunteerStats = async (req, res) => {
   try {

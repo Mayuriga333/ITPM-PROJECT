@@ -102,6 +102,17 @@ const supportRequestSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  feedbackVisibility: {
+    type: String,
+    enum: ['public', 'private'],
+    default: 'public'
+  },
+  goalAlignmentScore: {
+    type: Number,
+    min: 0,
+    max: 100,
+    default: null
+  },
   moderationStatus: {
     type: String,
     enum: ['pending', 'approved', 'flagged', 'rejected'],

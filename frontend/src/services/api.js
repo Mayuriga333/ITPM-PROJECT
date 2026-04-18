@@ -134,17 +134,19 @@ export const studyVolunteerAPI = {
   getById:      (id)     => api.get(`/study-volunteers/${id}`),
   getRequests:  (id)     => api.get(`/study-volunteers/${id}/requests`),
   getStats:     (id)     => api.get(`/study-volunteers/${id}/stats`),
+  getReviews:   (id)     => api.get(`/study-volunteers/${id}/reviews`),
 };
 
 export const studyRequestAPI = {
-  create:   (data)               => api.post('/requests', data),
-  getById:  (id)                 => api.get(`/requests/${id}`),
-  update:   (id, data)           => api.put(`/requests/${id}`, data),
-  accept:   (id)                 => api.put(`/requests/${id}/accept`),
-  reject:   (id, rejectReason)   => api.put(`/requests/${id}/reject`, { rejectReason }),
-  complete: (id)                 => api.put(`/requests/${id}/complete`),
-  review:   (id, payload)        => api.post(`/requests/${id}/review`, payload, payload instanceof FormData ? { headers: { 'Content-Type': 'multipart/form-data' } } : {}),
-  remove:   (id)                 => api.delete(`/requests/${id}`),
+  create:              (data)               => api.post('/requests', data),
+  getById:             (id)                 => api.get(`/requests/${id}`),
+  update:              (id, data)           => api.put(`/requests/${id}`, data),
+  accept:              (id)                 => api.put(`/requests/${id}/accept`),
+  reject:              (id, rejectReason)   => api.put(`/requests/${id}/reject`, { rejectReason }),
+  complete:            (id)                 => api.put(`/requests/${id}/complete`),
+  review:              (id, payload)        => api.post(`/requests/${id}/review`, payload, payload instanceof FormData ? { headers: { 'Content-Type': 'multipart/form-data' } } : {}),
+  remove:              (id)                 => api.delete(`/requests/${id}`),
+  getFeedbackHistory:  (studentId, studentName) => api.get('/requests/feedback-history', { params: { studentId, studentName } }),
 };
 
 // P3 backward-compatibility aliases (so study/ pages can import original names)
