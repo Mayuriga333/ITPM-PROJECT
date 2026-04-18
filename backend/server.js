@@ -1,114 +1,97 @@
-const express = require('express');
-const http = require('http');
+/**
+ * server.js — Merged entry point for the Smart Volunteer Platform
+ *
+ * Combines all features from:
+ *   - Auth, Chatbot & Volunteer Matching (P1)
+ *   - Ratings, Reviews & Smart Matching (P2)
+ *   - Study Support Requests & Dispute Management (P3)
+ */
+
+const express  = require('express');
 const mongoose = require('mongoose');
-const cors = require('cors');
-const dotenv = require('dotenv');
-const { Server } = require('socket.io');
+const cors     = require('cors');
+const path     = require('path');
+const dotenv   = require('dotenv');
 
-const registerChatHandlers = require('./sockets/chat');
-const registerDirectMessagingHandlers = require('./sockets/directMessaging');
-
-// Load environment variables first
-dotenv.config();
+// Always load .env from the backend directory, regardless of working directory
+dotenv.config({ path: path.resolve(__dirname, '.env') });
 
 const app = express();
 
-const server = http.createServer(app);
-
-const PORT = process.env.PORT || 5000;
-
-const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || 'http://localhost:5173';
-
-app.use(
-    cors({
-        origin: FRONTEND_ORIGIN,
-        credentials: true,
-    })
-);
+// ── Middleware ─────────────────────────────────────────────────────────────────
+app.use(cors({
+  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+  credentials: true,
+}));
 app.use(express.json());
 
-const io = new Server(server, {
-    cors: {
-        origin: FRONTEND_ORIGIN,
-        credentials: true,
-    },
-});
+// Serve uploaded files (review attachments from P2)
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-registerChatHandlers(io);
-registerDirectMessagingHandlers(io);
-
-// Debug: Check if MONGODB_URL is loaded
-console.log('MONGODB_URI:', process.env.MONGO_URI);
-
-const URL = process.env.MONGO_URI || 'mongodb+srv://kavinduhewamadduma:lrJhe9GXtSojVmrw@cluster0.rv2ijhs.mongodb.net/Doctor_Prescriptions?retryWrites=true&w=majority&appName=Cluster0';
-
-mongoose.connect(URL)
-.then(() => {
-    console.log('Connected to MongoDB');
-})
-.catch((error) => {
-    console.error('Error connecting to MongoDB:', error);
-});
-
-// Routes
-app.use('/api/auth', require('./routes/authRoutes'));
-app.use('/api/volunteers', require('./routes/volunteerRoutes'));
-app.use('/api/requests', require('./routes/requestRoutes'));
-app.use('/api/students', require('./routes/studentRoutes'));
-app.use('/api/conversation', require('./routes/conversationRoutes'));
+// ── Routes: Auth, Chatbot & Admin (from P1) ──────────────────────────────────
+app.use('/api/auth',     require('./routes/authRoutes'));
+app.use('/api/chat',     require('./routes/chatRoutes'));
+app.use('/api/match',    require('./routes/matchRoutes'));
+app.use('/api/admin',    require('./routes/adminRoutes'));
 app.use('/api/messages', require('./routes/messageRoutes'));
 
-app.get('/api/health', (req, res) => {
-    res.json({ success: true, status: 'ok' });
-});
+// ── Routes: Ratings, Reviews & Smart Matching (from P2) ──────────────────────
+app.use('/api/volunteers', require('./routes/volunteerRoutes'));
+app.use('/api/reviews',    require('./routes/reviewRoutes'));
+app.use('/api/sessions',   require('./routes/sessionRoutes'));
+app.use('/api/matching',   require('./routes/matchingRoutes'));
+app.use('/api/notifications', require('./routes/notificationRoutes'));
 
-// 404 for unknown API routes
+// ── Routes: Study Support Requests & Disputes (from P3) ──────────────────────
+app.use('/api/requests',        require('./routes/requestRoutes'));
+app.use('/api/study-students',  require('./routes/studyStudentRoutes'));
+app.use('/api/study-volunteers', require('./routes/studyVolunteerRoutes'));
+
+// ── Health check ──────────────────────────────────────────────────────────────
+app.get('/api/health', (_req, res) =>
+  res.json({ status: 'ok', timestamp: new Date().toISOString() })
+);
+
+// ── 404 for unknown API routes ────────────────────────────────────────────────
 app.use('/api', (req, res) => {
-    return res.status(404).json({
-        success: false,
-        message: 'Route not found',
-        errors: [
-            {
-                path: req.originalUrl,
-                message: 'The requested API endpoint does not exist.',
-            },
-        ],
-    });
+  res.status(404).json({
+    success: false,
+    message: 'Route not found',
+    errors: [{ path: req.originalUrl, message: 'The requested API endpoint does not exist.' }],
+  });
 });
 
-// Centralized error handling middleware (fallback)
-app.use((err, req, res, next) => {
-    console.error(err.stack || err);
+// ── Global error handler ──────────────────────────────────────────────────────
+app.use((err, _req, res, _next) => {
+  console.error('[Server Error]', err.stack || err.message);
 
-    const status = err.statusCode || err.status || 500;
-    const message = err.message || 'Internal server error';
-    const errors = err.errors || [
-        {
-            path: null,
-            message,
-        },
-    ];
-
-    res.status(status).json({
-        success: false,
-        message,
-        errors,
-    });
-});
-
-
-server.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-});
-
-server.on('error', (err) => {
-    if (err && err.code === 'EADDRINUSE') {
-        console.error(`Port ${PORT} is already in use.`);
-        console.error('Stop the other process or start this server with a different port, e.g. set PORT=5055.');
-        process.exit(1);
+  // Handle multer errors (file upload)
+  if (err.name === 'MulterError') {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ message: 'Attachment must be 5MB or less' });
     }
+    return res.status(400).json({ message: err.message || 'File upload failed' });
+  }
+  if (err.message && err.message.includes('Only .jpg, .png, and .pdf')) {
+    return res.status(400).json({ message: err.message });
+  }
 
-    console.error('Server failed to start:', err);
-    process.exit(1);
+  const status  = err.status || err.statusCode || 500;
+  const message = err.message || 'Server error';
+  res.status(status).json({ success: false, message });
 });
 
+// ── Connect & Listen ──────────────────────────────────────────────────────────
+const PORT      = process.env.PORT || 5000;
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/volunteer_system';
+
+mongoose
+  .connect(MONGO_URI)
+  .then(() => {
+    console.log('✅ MongoDB connected');
+    app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+  })
+  .catch((err) => {
+    console.error('❌ MongoDB connection failed:', err.message);
+    process.exit(1);
+  });

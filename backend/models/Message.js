@@ -1,28 +1,60 @@
+/**
+ * models/Message.js — Messaging system between students and volunteers
+ *
+ * Messages are organized by conversations between a student and volunteer.
+ * Each conversation represents a matched pair that can exchange messages.
+ */
+
 const mongoose = require('mongoose');
 
-const { Schema } = mongoose;
-
-const messageSchema = new Schema(
+const MessageSchema = new mongoose.Schema(
   {
+    // The conversation this message belongs to
     conversationId: {
-      type: Schema.Types.ObjectId,
+      type: mongoose.Schema.Types.ObjectId,
       ref: 'Conversation',
       required: true,
-      index: true,
     },
+    
+    // Sender of the message (either student or volunteer)
     senderId: {
-      type: Schema.Types.ObjectId,
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
       required: true,
-      index: true,
     },
-    text: {
+    
+    // Content of the message
+    content: {
       type: String,
-      required: true,
+      required: [true, 'Message content is required'],
       trim: true,
-      maxlength: 5000,
+      maxlength: 1000,
+    },
+    
+    // Message type for future extensibility
+    messageType: {
+      type: String,
+      enum: ['text', 'file', 'image'],
+      default: 'text',
+    },
+    
+    // Read status tracking
+    isRead: {
+      type: Boolean,
+      default: false,
+    },
+    
+    // Read timestamp
+    readAt: {
+      type: Date,
+      default: null,
     },
   },
-  { timestamps: { createdAt: true, updatedAt: false } }
+  { timestamps: true }
 );
 
-module.exports = mongoose.models.Message || mongoose.model('Message', messageSchema);
+// Index for efficient querying
+MessageSchema.index({ conversationId: 1, createdAt: 1 });
+MessageSchema.index({ senderId: 1 });
+
+module.exports = mongoose.model('Message', MessageSchema);

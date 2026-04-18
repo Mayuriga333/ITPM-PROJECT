@@ -1,150 +1,145 @@
-const Volunteer = require('../models/Volunteer');
-const SupportRequest = require('../models/SupportRequest');
+const Volunteer = require("../models/Volunteer");
+const Review = require("../models/Review");
+const User = require("../models/User");
 
-// Register a new volunteer
-exports.registerVolunteer = async (req, res) => {
-  try {
-    const { name, email, subjects, bio, availability } = req.body;
-    
-    // Check if volunteer already exists
-    const existingVolunteer = await Volunteer.findOne({ email });
-    if (existingVolunteer) {
-      return res.status(400).json({ message: 'Volunteer already exists with this email' });
-    }
-    
-    // Create new volunteer
-    const volunteer = new Volunteer({
-      name,
-      email,
-      subjects,
-      bio,
-      availability: availability || 'Any Time'
-    });
-    
-    await volunteer.save();
-    
-    res.status(201).json({
-      success: true,
-      data: volunteer
-    });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-// Get all volunteers with filters
+// @desc    Get all volunteers (with optional filters)
+// @route   GET /api/volunteers
 exports.getVolunteers = async (req, res) => {
   try {
-    const { subject, availability, search, limit = 10 } = req.query;
+    const { subject, experienceLevel, minRating, sortBy } = req.query;
 
-    // Base query: return all volunteers by default
-    let query = {};
-    
-    // Filter by subject
+    let filter = { isApproved: true };
+
     if (subject) {
-      query.subjects = subject;
+      filter.subjects = { $regex: new RegExp(subject, "i") };
     }
-    
-    // Filter by availability
-    if (availability && availability !== 'Any Time') {
-      query.availability = availability;
+    if (experienceLevel) {
+      filter.experienceLevel = experienceLevel;
     }
-    
-    // Search by name
-    if (search) {
-      query.name = { $regex: search, $options: 'i' };
+    if (minRating) {
+      filter.averageRating = { $gte: parseFloat(minRating) };
     }
-    
-    const volunteers = await Volunteer.find(query)
-      .sort({ rating: -1, totalSessions: -1 })
-      .limit(parseInt(limit));
-    
-    res.json({
-      success: true,
-      count: volunteers.length,
-      data: volunteers
-    });
+
+    let sortOption = { reputationScore: -1 };
+    if (sortBy === "rating") sortOption = { averageRating: -1 };
+    if (sortBy === "sessions") sortOption = { completedSessions: -1 };
+    if (sortBy === "newest") sortOption = { createdAt: -1 };
+
+    const volunteers = await Volunteer.find(filter)
+      .populate("user", "name email avatar")
+      .sort(sortOption);
+
+    res.json(volunteers);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// Get volunteer by ID
+// @desc    Get volunteer profile by ID
+// @route   GET /api/volunteers/:id
 exports.getVolunteerById = async (req, res) => {
   try {
-    const volunteer = await Volunteer.findById(req.params.id);
-    
-    if (!volunteer) {
-      return res.status(404).json({ message: 'Volunteer not found' });
-    }
-    
-    res.json({
-      success: true,
-      data: volunteer
-    });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
+    const volunteer = await Volunteer.findById(req.params.id).populate(
+      "user",
+      "name email avatar createdAt"
+    );
 
-// Get volunteer's incoming requests
-exports.getVolunteerRequests = async (req, res) => {
-  try {
-    const requests = await SupportRequest.find({
-      volunteer: req.params.id,
-      status: { $in: ['pending', 'accepted', 'rejected', 'completed'] }
+    if (!volunteer) {
+      return res.status(404).json({ message: "Volunteer not found" });
+    }
+
+    // Get reviews for this volunteer
+    const reviews = await Review.find({
+      volunteer: volunteer._id,
+      status: "approved",
     })
-    .populate('student', 'name email')
-    .sort({ date: 1, timeSlot: 1 });
-    
-    res.json({
-      success: true,
-      count: requests.length,
-      data: requests
-    });
+      .populate("student", "name")
+      .sort({ createdAt: -1 })
+      .limit(20);
+
+    res.json({ volunteer, reviews });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// Get volunteer dashboard stats
-exports.getVolunteerStats = async (req, res) => {
+// @desc    Update volunteer profile
+// @route   PUT /api/volunteers/:id
+exports.updateVolunteer = async (req, res) => {
   try {
     const volunteer = await Volunteer.findById(req.params.id);
-    
+
     if (!volunteer) {
-      return res.status(404).json({ message: 'Volunteer not found' });
+      return res.status(404).json({ message: "Volunteer not found" });
     }
-    
-    // Reset daily count if needed
-    volunteer.canAcceptMoreSessions();
-    
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    
-    // Get today's accepted sessions
-    const todaysAccepted = await SupportRequest.countDocuments({
-      volunteer: req.params.id,
-      status: 'accepted',
-      date: { $gte: today, $lt: tomorrow }
-    });
-    
-    volunteer.todaysSessions = todaysAccepted;
+
+    // Ensure only the owner can update
+    if (volunteer.user.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+
+    const { subjects, experienceLevel, bio, availability } = req.body;
+
+    if (subjects) volunteer.subjects = subjects;
+    if (experienceLevel) volunteer.experienceLevel = experienceLevel;
+    if (bio !== undefined) volunteer.bio = bio;
+    if (availability) volunteer.availability = availability;
+
     await volunteer.save();
-    
-    const stats = {
-      dailyLimit: volunteer.dailySessionLimit,
-      todaysSessions: volunteer.todaysSessions,
-      remainingToday: volunteer.dailySessionLimit - volunteer.todaysSessions
-    };
-    
-    res.json({
-      success: true,
-      data: stats
-    });
+
+    const updated = await Volunteer.findById(volunteer._id).populate(
+      "user",
+      "name email avatar"
+    );
+
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Get leaderboard
+// @route   GET /api/volunteers/leaderboard
+exports.getLeaderboard = async (req, res) => {
+  try {
+    const topRated = await Volunteer.find({ isApproved: true, totalReviews: { $gte: 1 } })
+      .populate("user", "name avatar")
+      .sort({ averageRating: -1, totalReviews: -1 })
+      .limit(10);
+
+    const mostActive = await Volunteer.find({ isApproved: true })
+      .populate("user", "name avatar")
+      .sort({ completedSessions: -1 })
+      .limit(10);
+
+    const risingStars = await Volunteer.find({
+      isApproved: true,
+      createdAt: { $gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) },
+    })
+      .populate("user", "name avatar")
+      .sort({ reputationScore: -1 })
+      .limit(10);
+
+    res.json({ topRated, mostActive, risingStars });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Get volunteer profile for the logged-in volunteer user
+// @route   GET /api/volunteers/me/profile
+exports.getMyVolunteerProfile = async (req, res) => {
+  try {
+    const volunteer = await Volunteer.findOne({ user: req.user._id }).populate(
+      "user",
+      "name email avatar"
+    );
+
+    if (!volunteer) {
+      return res.status(404).json({ message: "Volunteer profile not found" });
+    }
+
+    res.json(volunteer);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

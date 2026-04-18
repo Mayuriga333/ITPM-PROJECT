@@ -1,95 +1,161 @@
-import axios from 'axios';
-import toast from 'react-hot-toast';
+/**
+ * services/api.js — Unified Axios instance with ALL endpoints from P1, P2, P3
+ */
 
-const API = axios.create({
-  baseURL: 'http://localhost:5000/api',
-  headers: {
-    'Content-Type': 'application/json',
-  },
+import axios from 'axios';
+
+const api = axios.create({
+  baseURL: '/api',
+  headers: { 'Content-Type': 'application/json' },
 });
 
-// Request interceptor
-API.interceptors.request.use(
+// ── Request: attach JWT ───────────────────────────────────────────────────────
+api.interceptors.request.use(
   (config) => {
+    const token = localStorage.getItem('token');
+    if (token) config.headers.Authorization = `Bearer ${token}`;
+
+    // P3 compatibility: attach X-Student-ID / X-Volunteer-ID headers
     const student = JSON.parse(localStorage.getItem('currentStudent') || 'null');
     const volunteer = JSON.parse(localStorage.getItem('currentVolunteer') || 'null');
-    
-    if (student) {
-      config.headers['X-Student-ID'] = student._id;
-    }
-    if (volunteer) {
-      config.headers['X-Volunteer-ID'] = volunteer._id;
-    }
-    
+    if (student)   config.headers['X-Student-ID']   = student._id;
+    if (volunteer) config.headers['X-Volunteer-ID'] = volunteer._id;
+
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
-// Response interceptor
-API.interceptors.response.use(
-  (response) => response.data,
+// ── Response: handle 401 globally ────────────────────────────────────────────
+api.interceptors.response.use(
+  (response) => response,
   (error) => {
-    const data = error.response?.data;
-    let message = data?.message || 'Something went wrong';
-
-    if (Array.isArray(data?.errors) && data.errors.length > 0) {
-      const details = data.errors
-        .map((e) => e?.message)
-        .filter(Boolean)
-        .join('\n');
-
-      if (details) {
-        message = `${message}${message.endsWith('.') ? '' : ':'} ${details}`;
-      }
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('currentStudent');
+      localStorage.removeItem('currentVolunteer');
+      window.location.href = '/login';
     }
-
-    toast.error(message);
     return Promise.reject(error);
   }
 );
 
-// Volunteer APIs
-export const volunteerAPI = {
-  register: (data) => API.post('/volunteers/register', data),
-  getAll: (params) => API.get('/volunteers', { params }),
-  getById: (id) => API.get(`/volunteers/${id}`),
-  getRequests: (id) => API.get(`/volunteers/${id}/requests`),
-  getStats: (id) => API.get(`/volunteers/${id}/stats`),
+// ══════════════════════════════════════════════════════════════════════════════
+//  P1 — Auth, Chat, Match, Admin, Messages
+// ══════════════════════════════════════════════════════════════════════════════
+
+export const authAPI = {
+  register:      (data) => api.post('/auth/register', data),
+  login:         (data) => api.post('/auth/login', data),
+  getMe:         ()     => api.get('/auth/me'),
+  updateProfile: (data) => api.put('/auth/profile', data),
+  deleteProfile: ()     => api.delete('/auth/profile'),
 };
 
-// Student APIs
-export const studentAPI = {
-  register: (data) => API.post('/students/register', data),
-  getById: (id) => API.get(`/students/${id}`),
-  getByEmail: (email) => API.get(`/students/email/${email}`),
-  getRequests: (id) => API.get(`/students/${id}/requests`),
-  getStats: (id) => API.get(`/students/${id}/stats`),
+export const chatAPI = {
+  sendMessage:  (message) => api.post('/chat/message', { message }),
+  getHistory:   ()        => api.get('/chat/history'),
+  resetSession: ()        => api.delete('/chat/reset'),
 };
 
-// Request APIs
-export const requestAPI = {
-  create: (data) => API.post('/requests', data),
-  getById: (id) => API.get(`/requests/${id}`),
-  update: (id, data) => API.put(`/requests/${id}`, data),
-  accept: (id) => API.put(`/requests/${id}/accept`),
-  reject: (id, rejectReason) => API.put(`/requests/${id}/reject`, { rejectReason }),
-  complete: (id) => API.put(`/requests/${id}/complete`),
-  review: (id, payload) => API.post(`/requests/${id}/review`, payload),
-  remove: (id) => API.delete(`/requests/${id}`),
+export const matchAPI = {
+  getMatches:    ()     => api.get('/match/volunteers'),
+  getMyProfile:  ()     => api.get('/match/profile'),
+  upsertProfile: (data) => api.post('/match/profile', data),
 };
 
-// Chat APIs
-export const conversationAPI = {
-  create: (data) => API.post('/conversation', data),
-  getForUser: (userId) => API.get(`/conversation/${userId}`),
+export const adminAPI = {
+  getStats:          ()                    => api.get('/admin/stats'),
+  getUsers:          (params)              => api.get('/admin/users', { params }),
+  updateUserStatus:  (id, data)            => api.patch(`/admin/users/${id}/status`, data),
+  deleteUser:        (id)                  => api.delete(`/admin/users/${id}`),
+  getProfiles:       (params)              => api.get('/admin/profiles', { params }),
+  moderateProfile:   (id, data)            => api.patch(`/admin/profiles/${id}/moderate`, data),
+  flagProfile:       (id, data)            => api.patch(`/admin/profiles/${id}/flag`, data),
 };
 
 export const messageAPI = {
-  getForConversation: (conversationId) => API.get(`/messages/${conversationId}`),
-  send: (data) => API.post('/messages', data),
+  startConversation: (data)    => api.post('/messages/conversations', data),
+  sendMessage:       (data)    => api.post('/messages/send', data),
+  getConversations:  ()        => api.get('/messages/conversations'),
+  getMessages:       (id)      => api.get(`/messages/conversations/${id}/messages`),
+  archiveConversation: (id)    => api.put(`/messages/conversations/${id}/archive`),
+  getUnreadCount:    ()        => api.get('/messages/unread-count'),
 };
 
-export default API;
+// ══════════════════════════════════════════════════════════════════════════════
+//  P2 — Ratings, Reviews, Smart Matching (volunteers, reviews, sessions)
+// ══════════════════════════════════════════════════════════════════════════════
+
+export const ratingVolunteerAPI = {
+  getAll:           (params) => api.get('/volunteers', { params }),
+  getById:          (id)     => api.get(`/volunteers/${id}`),
+  getProfile:       ()       => api.get('/volunteers/profile'),
+  create:           (data)   => api.post('/volunteers', data),
+  update:           (id, data) => api.put(`/volunteers/${id}`, data),
+  getLeaderboard:   ()       => api.get('/volunteers/leaderboard'),
+};
+
+export const reviewAPI = {
+  create:           (data)   => api.post('/reviews', data),
+  getByVolunteer:   (id)     => api.get(`/reviews/volunteer/${id}`),
+  getPending:       ()       => api.get('/reviews/pending'),
+  moderate:         (id, data) => api.patch(`/reviews/${id}/moderate`, data),
+};
+
+export const sessionAPI = {
+  getAll:           (params) => api.get('/sessions', { params }),
+  getById:          (id)     => api.get(`/sessions/${id}`),
+  create:           (data)   => api.post('/sessions', data),
+  updateStatus:     (id, data) => api.patch(`/sessions/${id}/status`, data),
+  complete:         (id, data) => api.patch(`/sessions/${id}/complete`, data),
+};
+
+export const smartMatchAPI = {
+  findMatch:        (data)   => api.post('/matching', data),
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  P3 — Study Support Requests & Disputes
+// ══════════════════════════════════════════════════════════════════════════════
+
+export const studyStudentAPI = {
+  register:     (data)        => api.post('/study-students/register', data),
+  getById:      (id)          => api.get(`/study-students/${id}`),
+  getByEmail:   (email)       => api.get(`/study-students/email/${email}`),
+  getRequests:  (id, name)    => api.get(`/study-students/${id}/requests`, { params: name ? { studentName: name } : {} }),
+  getStats:     (id, name)    => api.get(`/study-students/${id}/stats`, { params: name ? { studentName: name } : {} }),
+};
+
+export const studyVolunteerAPI = {
+  register:     (data)   => api.post('/study-volunteers/register', data),
+  getAll:       (params) => api.get('/study-volunteers', { params }),
+  getById:      (id)     => api.get(`/study-volunteers/${id}`),
+  getRequests:  (id)     => api.get(`/study-volunteers/${id}/requests`),
+  getStats:     (id)     => api.get(`/study-volunteers/${id}/stats`),
+};
+
+export const studyRequestAPI = {
+  create:   (data)               => api.post('/requests', data),
+  getById:  (id)                 => api.get(`/requests/${id}`),
+  update:   (id, data)           => api.put(`/requests/${id}`, data),
+  accept:   (id)                 => api.put(`/requests/${id}/accept`),
+  reject:   (id, rejectReason)   => api.put(`/requests/${id}/reject`, { rejectReason }),
+  complete: (id)                 => api.put(`/requests/${id}/complete`),
+  review:   (id, payload)        => api.post(`/requests/${id}/review`, payload, payload instanceof FormData ? { headers: { 'Content-Type': 'multipart/form-data' } } : {}),
+  remove:   (id)                 => api.delete(`/requests/${id}`),
+};
+
+export const notificationAPI = {
+  getAll:      (params) => api.get('/notifications', { params }),
+  getUnreadCount: ()    => api.get('/notifications/unread-count'),
+  markRead:    (id)     => api.patch(`/notifications/${id}/read`),
+  markAllRead:  ()      => api.patch('/notifications/read-all'),
+  remove:      (id)     => api.delete(`/notifications/${id}`),
+};
+
+// P3 backward-compatibility aliases (so study/ pages can import original names)
+export { studyStudentAPI as studentAPI, studyVolunteerAPI as volunteerAPI, studyRequestAPI as requestAPI };
+
+export default api;

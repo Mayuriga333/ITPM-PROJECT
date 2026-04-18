@@ -1,10 +1,17 @@
-const express = require('express');
-const router = express.Router();
-const { login } = require('../controllers/authController');
+/**
+ * routes/authRoutes.js
+ */
 
-// @route   POST /api/auth/login
-// @desc    Mock login to get session state (no JWT)
-// @access  Public
-router.post('/login', login);
+const express = require('express');
+const router  = express.Router();
+
+const { register, login, getMe, updateProfile, deleteProfile } = require('../controllers/authController');
+const { protect }                                        = require('../middleware/authMiddleware');
+
+router.post('/register', register);
+router.post('/login',    login);
+router.get('/me',        protect, getMe);
+router.put('/profile',   protect, updateProfile);
+router.delete('/profile', protect, deleteProfile);
 
 module.exports = router;

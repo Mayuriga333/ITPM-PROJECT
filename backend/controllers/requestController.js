@@ -1,7 +1,15 @@
 const mongoose = require('mongoose');
 const SupportRequest = require('../models/SupportRequest');
-const Volunteer = require('../models/Volunteer');
-const Student = require('../models/Student');
+const StudyVolunteer = require('../models/StudyVolunteer');
+const StudyStudent = require('../models/StudyStudent');
+const User = require('../models/User');
+const {
+  createNotification,
+  resolveStudyStudentUserId,
+  resolveStudyVolunteerUserId,
+} = require('../utils/notificationService');
+
+const { detectInappropriateContent } = require('../middleware/reviewModeration');
 
 const ALLOWED_SUBJECTS = SupportRequest.schema.path('subject').enumValues;
 const ALLOWED_TIME_SLOTS = [
@@ -34,42 +42,116 @@ const buildRequestDay = (date) => {
   return d;
 };
 
+const toIdString = (value) => {
+  if (!value) return null;
+  return value.toString();
+};
+
+const resolveStudentOwnerId = async (request) => {
+  if (request.requesterUser) {
+    return toIdString(request.requesterUser);
+  }
+
+  if (request.student) {
+    const student = await StudyStudent.findById(request.student).select('user email name');
+    if (student?.user) {
+      return toIdString(student.user);
+    }
+
+    if (student?.email) {
+      const user = await User.findOne({ email: student.email }).select('_id');
+      if (user) {
+        return toIdString(user._id);
+      }
+    }
+  }
+
+  return null;
+};
+
+const resolveVolunteerOwnerId = async (request) => {
+  if (request.volunteerUser) {
+    return toIdString(request.volunteerUser);
+  }
+
+  if (request.volunteer) {
+    const volunteer = await StudyVolunteer.findById(request.volunteer).select('user email name');
+    if (volunteer?.user) {
+      return toIdString(volunteer.user);
+    }
+
+    if (volunteer?.email) {
+      const user = await User.findOne({ email: volunteer.email }).select('_id');
+      if (user) {
+        return toIdString(user._id);
+      }
+    }
+  }
+
+  return null;
+};
+
+const resolveRequestStudentRecipientId = async (request) => {
+  if (request.requesterUser) {
+    return toIdString(request.requesterUser);
+  }
+
+  if (request.student) {
+    const student = await StudyStudent.findById(request.student).select('user email name');
+    const studentUserId = await resolveStudyStudentUserId(student);
+    if (studentUserId) {
+      return toIdString(studentUserId);
+    }
+  }
+
+  return null;
+};
+
+const sendRequestNotification = async ({ recipientUser, actorUser, request, type, title, message }) => {
+  try {
+    await createNotification({ recipientUser, actorUser, request, type, title, message });
+  } catch (error) {
+    console.warn('[notification]', error.message);
+  }
+};
+
 // Create a new support request
 exports.createRequest = async (req, res) => {
   try {
     const { studentId, studentName, volunteerId, subject, date, timeSlot, message } = req.body;
+    console.log('[createRequest] body:', JSON.stringify({ studentName, volunteerId, subject, date, timeSlot }));
+
+    if (!req.user || req.user.role !== 'Student') {
+      return validationErrorResponse(res, 403, 'Only students can create support requests');
+    }
 
     let student = null;
 
-    // If a studentId is provided, validate it and prefer the stored name
-    if (studentId) {
-      student = await Student.findById(studentId);
-      if (!student) {
-        return validationErrorResponse(res, 404, 'Student not found');
-      }
+    if (studentId && mongoose.Types.ObjectId.isValid(studentId)) {
+      // Optional: if studentId is provided, look it up in StudyStudent.
+      // If not found (e.g. P1 User id was sent), silently fall through to studentName.
+      student = await StudyStudent.findById(studentId).catch(() => null);
     }
 
-    // Check if volunteer exists
-    const volunteer = await Volunteer.findById(volunteerId);
+    const volunteer = await StudyVolunteer.findById(volunteerId);
     if (!volunteer) {
       return validationErrorResponse(res, 404, 'Volunteer not found');
     }
 
-    // Basic subject guard against enum drift
+    const volunteerUserId = await resolveStudyVolunteerUserId(volunteer);
+
     if (!ALLOWED_SUBJECTS.includes(subject)) {
       return validationErrorResponse(res, 400, 'Invalid subject', [
         { path: 'subject', message: 'Subject must be one of the allowed subjects.' },
       ]);
     }
 
-    // Check if volunteer is available for this subject
     if (!volunteer.subjects.includes(subject)) {
       return validationErrorResponse(res, 400, 'Volunteer does not teach this subject', [
         { path: 'subject', message: 'Selected volunteer does not teach this subject.' },
       ]);
     }
 
-    // Validate requested date (today or future)
     const requestedDate = new Date(date);
     if (Number.isNaN(requestedDate.getTime())) {
       return validationErrorResponse(res, 400, 'Invalid date', [
@@ -88,14 +170,12 @@ exports.createRequest = async (req, res) => {
       ]);
     }
 
-    // Validate time slot is from allowed list
     if (!ALLOWED_TIME_SLOTS.includes(timeSlot)) {
       return validationErrorResponse(res, 400, 'Invalid time slot', [
         { path: 'timeSlot', message: 'Time slot must be one of the allowed values.' },
       ]);
     }
 
-    // Volunteer availability window
     if (volunteer.availability === 'Available Now' && requestDay > today) {
       return validationErrorResponse(res, 400, 'Volunteer is only available today', [
         { path: 'date', message: 'This volunteer is marked as "Available Now" only.' },
@@ -112,7 +192,6 @@ exports.createRequest = async (req, res) => {
       }
     }
 
-    // Determine the name to store on the request
     const resolvedStudentName = student ? student.name : studentName;
     if (!resolvedStudentName) {
       return validationErrorResponse(res, 400, 'Student name is required', [
@@ -120,7 +199,8 @@ exports.createRequest = async (req, res) => {
       ]);
     }
 
-    // Prevent duplicate pending/accepted requests for same slot
+    const requesterUserId = req.user._id;
+
     const duplicate = await SupportRequest.findOne({
       volunteer: volunteerId,
       student: student ? student._id : undefined,
@@ -136,7 +216,6 @@ exports.createRequest = async (req, res) => {
       ]);
     }
 
-    // Prevent collisions with already accepted sessions for this volunteer
     const conflictingAccepted = await SupportRequest.findOne({
       volunteer: volunteerId,
       date: requestDay,
@@ -150,12 +229,13 @@ exports.createRequest = async (req, res) => {
       ]);
     }
 
-    // Create support request
     const request = new SupportRequest({
       student: student ? student._id : undefined,
       studentName: resolvedStudentName,
+      requesterUser: requesterUserId,
       volunteer: volunteerId,
       volunteerName: volunteer.name,
+      volunteerUser: volunteerUserId,
       subject,
       date: requestDay,
       timeSlot,
@@ -164,6 +244,17 @@ exports.createRequest = async (req, res) => {
     });
     
     await request.save();
+
+    if (volunteerUserId) {
+      await sendRequestNotification({
+        recipientUser: volunteerUserId,
+        actorUser: requesterUserId,
+        request,
+        type: 'request_submitted',
+        title: 'New support request',
+        message: `${resolvedStudentName} requested help in ${subject} on ${requestDay.toLocaleDateString()} at ${timeSlot}.`,
+      });
+    }
     
     res.status(201).json({
       success: true,
@@ -189,11 +280,21 @@ exports.updateRequest = async (req, res) => {
       return validationErrorResponse(res, 404, 'Request not found');
     }
 
+    if (req.user.role !== 'Admin') {
+      const ownerId = await resolveStudentOwnerId(request);
+      if (ownerId && ownerId !== req.user._id.toString()) {
+        return validationErrorResponse(res, 403, 'You can only manage your own requests');
+      }
+      if (!ownerId && request.studentName && req.user.name && request.studentName !== req.user.name) {
+        return validationErrorResponse(res, 403, 'You can only manage your own requests');
+      }
+    }
+
     if (request.status !== 'pending') {
       return validationErrorResponse(res, 400, 'Only pending requests can be updated');
     }
 
-    const volunteer = request.volunteer ? request.volunteer : await Volunteer.findById(request.volunteer);
+    const volunteer = request.volunteer ? request.volunteer : await StudyVolunteer.findById(request.volunteer);
     if (!volunteer) {
       return validationErrorResponse(res, 404, 'Volunteer not found');
     }
@@ -268,10 +369,9 @@ exports.updateRequest = async (req, res) => {
       }
     }
 
-    // Prevent duplicate pending/accepted requests for same slot (for this student + volunteer)
-    const duplicate = await SupportRequest.findOne({
+    const duplicateCheck = await SupportRequest.findOne({
       _id: { $ne: request._id },
-      volunteer: request.volunteer,
+      volunteer: request.volunteer._id || request.volunteer,
       student: request.student || undefined,
       studentName: request.student ? undefined : (studentName || request.studentName),
       date: requestDay,
@@ -279,16 +379,16 @@ exports.updateRequest = async (req, res) => {
       status: { $in: ['pending', 'accepted'] },
     });
 
-    if (duplicate) {
+    if (duplicateCheck) {
       return validationErrorResponse(res, 409, 'Duplicate request for this time slot', [
         { path: 'timeSlot', message: 'You already have a request for this volunteer at this time.' },
       ]);
     }
 
-    // Apply updates
     if (studentName && typeof studentName === 'string') {
       request.studentName = studentName;
     }
+    request.requesterUser = req.user._id;
     request.subject = subject;
     request.date = requestDay;
     request.timeSlot = timeSlot;
@@ -322,6 +422,23 @@ exports.getRequestById = async (req, res) => {
     if (!request) {
       return validationErrorResponse(res, 404, 'Request not found');
     }
+
+    if (req.user.role !== 'Admin') {
+      const studentOwnerId = await resolveStudentOwnerId(request);
+      const volunteerOwnerId = await resolveVolunteerOwnerId(request);
+      const currentUserId = req.user._id.toString();
+
+      const studentMatches = studentOwnerId
+        ? studentOwnerId === currentUserId
+        : request.studentName && req.user.name && request.studentName === req.user.name;
+      const volunteerMatches = volunteerOwnerId
+        ? volunteerOwnerId === currentUserId
+        : request.volunteerName && req.user.name && request.volunteerName === req.user.name;
+
+      if (!studentMatches && !volunteerMatches) {
+        return validationErrorResponse(res, 403, 'You can only view requests assigned to you');
+      }
+    }
     
     res.json({
       success: true,
@@ -345,17 +462,26 @@ exports.acceptRequest = async (req, res) => {
     if (!request) {
       return validationErrorResponse(res, 404, 'Request not found');
     }
+
+    if (req.user.role !== 'Admin') {
+      const ownerId = await resolveVolunteerOwnerId(request);
+      if (ownerId && ownerId !== req.user._id.toString()) {
+        return validationErrorResponse(res, 403, 'You can only manage requests assigned to you');
+      }
+      if (!ownerId && request.volunteerName && req.user.name && request.volunteerName !== req.user.name) {
+        return validationErrorResponse(res, 403, 'You can only manage requests assigned to you');
+      }
+    }
     
     if (request.status !== 'pending') {
       return validationErrorResponse(res, 400, 'Request is no longer pending');
     }
     
-    const volunteer = await Volunteer.findById(request.volunteer);
+    const volunteer = await StudyVolunteer.findById(request.volunteer);
     if (!volunteer) {
       return validationErrorResponse(res, 404, 'Volunteer not found');
     }
 
-    // Re-check for schedule collision before accepting
     const requestDay = new Date(request.date);
     requestDay.setHours(0, 0, 0, 0);
     const slotConflict = await SupportRequest.findOne({
@@ -372,19 +498,28 @@ exports.acceptRequest = async (req, res) => {
       ]);
     }
     
-    // Check if volunteer can accept more sessions today
     if (!volunteer.canAcceptMoreSessions()) {
       return validationErrorResponse(res, 400, 'Daily session limit reached');
     }
     
-    // Update request status
     request.status = 'accepted';
     await request.save();
     
-    // Update volunteer stats
     volunteer.todaysSessions += 1;
     volunteer.totalSessions += 1;
     await volunteer.save();
+
+    const studentUserId = await resolveRequestStudentRecipientId(request);
+    if (studentUserId) {
+      await sendRequestNotification({
+        recipientUser: studentUserId,
+        actorUser: req.user._id,
+        request,
+        type: 'request_accepted',
+        title: 'Request accepted',
+        message: `Your request with ${request.volunteerName} for ${request.subject} on ${request.date.toLocaleDateString()} at ${request.timeSlot} was accepted.`,
+      });
+    }
     
     res.json({
       success: true,
@@ -409,6 +544,16 @@ exports.rejectRequest = async (req, res) => {
       return validationErrorResponse(res, 404, 'Request not found');
     }
 
+    if (req.user.role !== 'Admin') {
+      const ownerId = await resolveVolunteerOwnerId(request);
+      if (ownerId && ownerId !== req.user._id.toString()) {
+        return validationErrorResponse(res, 403, 'You can only manage requests assigned to you');
+      }
+      if (!ownerId && request.volunteerName && req.user.name && request.volunteerName !== req.user.name) {
+        return validationErrorResponse(res, 403, 'You can only manage requests assigned to you');
+      }
+    }
+
     if (request.status !== 'pending') {
       return validationErrorResponse(res, 400, 'Request is no longer pending');
     }
@@ -421,6 +566,19 @@ exports.rejectRequest = async (req, res) => {
     }
     
     await request.save();
+
+    const studentUserId = await resolveRequestStudentRecipientId(request);
+    if (studentUserId) {
+      const reasonText = rejectReason ? ` Reason: ${rejectReason}` : '';
+      await sendRequestNotification({
+        recipientUser: studentUserId,
+        actorUser: req.user._id,
+        request,
+        type: 'request_rejected',
+        title: 'Request rejected',
+        message: `Your request with ${request.volunteerName} for ${request.subject} on ${request.date.toLocaleDateString()} at ${request.timeSlot} was rejected.${reasonText}`,
+      });
+    }
 
     res.json({
       success: true,
@@ -444,6 +602,16 @@ exports.completeRequest = async (req, res) => {
     if (!request) {
       return validationErrorResponse(res, 404, 'Request not found');
     }
+
+    if (req.user.role !== 'Admin') {
+      const ownerId = await resolveVolunteerOwnerId(request);
+      if (ownerId && ownerId !== req.user._id.toString()) {
+        return validationErrorResponse(res, 403, 'You can only manage requests assigned to you');
+      }
+      if (!ownerId && request.volunteerName && req.user.name && request.volunteerName !== req.user.name) {
+        return validationErrorResponse(res, 403, 'You can only manage requests assigned to you');
+      }
+    }
     
     if (request.status !== 'accepted') {
       return validationErrorResponse(res, 400, 'Only accepted requests can be completed');
@@ -466,68 +634,244 @@ exports.completeRequest = async (req, res) => {
   }
 };
 
-// Add a student review + rating for a completed/accepted request
+// Add a student review + rating for a completed/accepted request (ITPM-style full review)
 exports.addReview = async (req, res) => {
   try {
-    const { rating, reviewText, reviewSubject } = req.body;
+    const TOPIC_REGEX = /^[a-zA-Z0-9\s.,!?\-_'"():;/&]+$/;
+    const SAFE_TEXT_REGEX = /^[a-zA-Z0-9\s.,!?\-_'"():;/&\n\r]*$/;
+    const VALID_TAGS = ['positive', 'neutral', 'needs_improvement'];
+    const VALID_EXPERIENCE_TYPES = ['practice', 'review', 'new_learning'];
 
-    const errors = [];
+    const {
+      rating,
+      reviewText,
+      topicStudied,
+      followUpMatchAgain,
+      feedbackTags,
+      sessionDate,
+      experienceType,
+      recommendation,
+      isAnonymous,
+    } = req.body;
 
-    if (typeof rating !== 'number' || Number.isNaN(rating) || rating < 1 || rating > 5) {
-      errors.push({ path: 'rating', message: 'Rating must be a number between 1 and 5.' });
+    // ── Validate rating ──
+    const numRating = Number(rating);
+    if (!numRating || numRating < 1 || numRating > 5) {
+      return validationErrorResponse(res, 400, 'Rating must be between 1 and 5', [
+        { path: 'rating', message: 'Rating must be a number between 1 and 5.' },
+      ]);
     }
 
-    if (!reviewSubject || typeof reviewSubject !== 'string' || !reviewSubject.trim()) {
-      errors.push({ path: 'reviewSubject', message: 'Topic/subject studied is required.' });
+    // ── Validate topic / subject studied ──
+    const normalizedTopic = (topicStudied || '').trim();
+    if (!normalizedTopic) {
+      return validationErrorResponse(res, 400, 'Topic/Subject studied is required', [
+        { path: 'topicStudied', message: 'Topic/Subject studied is required.' },
+      ]);
+    }
+    if (normalizedTopic.length < 3 || normalizedTopic.length > 200) {
+      return validationErrorResponse(res, 400, 'Topic must be 3-200 characters', [
+        { path: 'topicStudied', message: 'Topic/Subject studied must be 3-200 characters.' },
+      ]);
+    }
+    if (!TOPIC_REGEX.test(normalizedTopic)) {
+      return validationErrorResponse(res, 400, 'Topic contains invalid characters', [
+        { path: 'topicStudied', message: 'Topic/Subject studied contains invalid characters.' },
+      ]);
     }
 
-    if (reviewText && typeof reviewText === 'string' && reviewText.trim().length > 1000) {
-      errors.push({ path: 'reviewText', message: 'Review must be at most 1000 characters.' });
+    // ── Validate follow-up ──
+    let normalizedFollowUp = null;
+    if (typeof followUpMatchAgain === 'boolean') {
+      normalizedFollowUp = followUpMatchAgain;
+    } else if (typeof followUpMatchAgain === 'string') {
+      const lower = followUpMatchAgain.trim().toLowerCase();
+      if (['true', 'yes', '1'].includes(lower)) normalizedFollowUp = true;
+      else if (['false', 'no', '0'].includes(lower)) normalizedFollowUp = false;
+    }
+    if (normalizedFollowUp === null) {
+      return validationErrorResponse(res, 400, 'Follow-up action is required', [
+        { path: 'followUpMatchAgain', message: 'Please select Yes or No.' },
+      ]);
     }
 
-    if (errors.length > 0) {
-      return validationErrorResponse(res, 400, 'Validation failed', errors);
+    // ── Validate feedback tags ──
+    let normalizedTags = [];
+    if (typeof feedbackTags === 'string') {
+      try { normalizedTags = JSON.parse(feedbackTags); } catch { normalizedTags = feedbackTags.split(',').map(t => t.trim()).filter(Boolean); }
+    } else if (Array.isArray(feedbackTags)) {
+      normalizedTags = feedbackTags;
+    }
+    if (!normalizedTags.length) {
+      return validationErrorResponse(res, 400, 'At least one feedback tag is required', [
+        { path: 'feedbackTags', message: 'Please select at least one feedback tag.' },
+      ]);
+    }
+    if (normalizedTags.length > 3) {
+      return validationErrorResponse(res, 400, 'Maximum 3 feedback tags', [
+        { path: 'feedbackTags', message: 'You can select a maximum of 3 feedback tags.' },
+      ]);
+    }
+    if (normalizedTags.some(tag => !VALID_TAGS.includes(tag))) {
+      return validationErrorResponse(res, 400, 'Invalid feedback tag', [
+        { path: 'feedbackTags', message: 'Allowed: positive, neutral, needs_improvement.' },
+      ]);
     }
 
+    // ── Validate session date ──
+    if (!sessionDate) {
+      return validationErrorResponse(res, 400, 'Session date is required', [
+        { path: 'sessionDate', message: 'Session date is required.' },
+      ]);
+    }
+    const parsedSessionDate = new Date(sessionDate);
+    if (Number.isNaN(parsedSessionDate.getTime())) {
+      return validationErrorResponse(res, 400, 'Invalid session date', [
+        { path: 'sessionDate', message: 'Session date format is invalid.' },
+      ]);
+    }
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    if (parsedSessionDate > today) {
+      return validationErrorResponse(res, 400, 'Session date cannot be in the future', [
+        { path: 'sessionDate', message: 'Session date cannot be in the future.' },
+      ]);
+    }
+    const oldestAllowed = new Date();
+    oldestAllowed.setFullYear(oldestAllowed.getFullYear() - 1);
+    oldestAllowed.setHours(0, 0, 0, 0);
+    if (parsedSessionDate < oldestAllowed) {
+      return validationErrorResponse(res, 400, 'Session date too old', [
+        { path: 'sessionDate', message: 'Session date cannot be older than 1 year.' },
+      ]);
+    }
+
+    // ── Validate experience type ──
+    if (!experienceType || !VALID_EXPERIENCE_TYPES.includes(experienceType)) {
+      return validationErrorResponse(res, 400, 'Invalid experience type', [
+        { path: 'experienceType', message: 'Allowed: practice, review, new_learning.' },
+      ]);
+    }
+
+    // ── Validate recommendation ──
+    const normalizedRecommendation = (recommendation || '').trim();
+    if (normalizedRecommendation.length > 500) {
+      return validationErrorResponse(res, 400, 'Recommendation too long', [
+        { path: 'recommendation', message: 'Recommendation cannot exceed 500 characters.' },
+      ]);
+    }
+    if (normalizedRecommendation && !SAFE_TEXT_REGEX.test(normalizedRecommendation)) {
+      return validationErrorResponse(res, 400, 'Recommendation contains unsafe characters', [
+        { path: 'recommendation', message: 'Recommendation contains unsafe characters.' },
+      ]);
+    }
+
+    // ── Validate review text safety ──
+    const normalizedReviewText = (reviewText || '').trim();
+    if (normalizedReviewText && !SAFE_TEXT_REGEX.test(normalizedReviewText)) {
+      return validationErrorResponse(res, 400, 'Review text contains unsafe characters', [
+        { path: 'reviewText', message: 'Review text contains unsafe characters.' },
+      ]);
+    }
+
+    // ── Find request ──
     const request = await SupportRequest.findById(req.params.id);
-
     if (!request) {
       return validationErrorResponse(res, 404, 'Request not found');
     }
 
+    if (req.user.role !== 'Admin') {
+      const ownerId = await resolveStudentOwnerId(request);
+      if (ownerId && ownerId !== req.user._id.toString()) {
+        return validationErrorResponse(res, 403, 'You can only manage your own requests');
+      }
+      if (!ownerId && request.studentName && req.user.name && request.studentName !== req.user.name) {
+        return validationErrorResponse(res, 403, 'You can only manage your own requests');
+      }
+    }
     if (!['accepted', 'completed'].includes(request.status)) {
       return validationErrorResponse(res, 400, 'Only accepted or completed requests can be reviewed');
     }
-
     if (typeof request.rating === 'number' && request.rating > 0) {
       return validationErrorResponse(res, 400, 'This request already has a review');
     }
 
-    request.rating = rating;
-    request.reviewText = reviewText ? reviewText.trim() : '';
-    request.reviewSubject = reviewSubject.trim();
+    // ── Content moderation ──
+    let reviewStatus = 'approved';
+    let flagReason = '';
+    let moderationScore = 0;
+    let moderationSeverity = null;
+
+    if (normalizedReviewText) {
+      const modResult = detectInappropriateContent(normalizedReviewText, numRating);
+      moderationScore = modResult.score;
+      moderationSeverity = modResult.severity;
+
+      if (modResult.autoReject) {
+        reviewStatus = 'rejected';
+        flagReason = modResult.reasons.join('; ');
+      } else if (modResult.flagged) {
+        reviewStatus = 'flagged';
+        flagReason = modResult.reasons.join('; ');
+      }
+    }
+
+    // ── Handle attachment ──
+    const attachment = req.file
+      ? {
+          fileName: req.file.originalname,
+          fileUrl: `/uploads/reviews/${req.file.filename}`,
+          mimeType: req.file.mimetype,
+          size: req.file.size,
+        }
+      : { fileName: '', fileUrl: '', mimeType: '', size: 0 };
+
+    // ── Save review on request ──
+    request.rating = numRating;
+    request.reviewText = normalizedReviewText;
+    request.reviewSubject = normalizedTopic;
+    request.followUpMatchAgain = normalizedFollowUp;
+    request.feedbackTags = normalizedTags;
+    request.reviewSessionDate = parsedSessionDate;
+    request.experienceType = experienceType;
+    request.attachment = attachment;
+    request.recommendation = normalizedRecommendation;
+    request.isAnonymous = isAnonymous || false;
+    request.moderationStatus = reviewStatus;
+    request.flagReason = flagReason;
+    request.moderationScore = moderationScore;
+    request.moderationSeverity = moderationSeverity;
     request.reviewCreatedAt = new Date();
 
     await request.save();
 
-    // Update volunteer's aggregate rating if possible
-    const volunteer = await Volunteer.findById(request.volunteer);
-    if (volunteer) {
-      const currentCount = typeof volunteer.ratingCount === 'number' ? volunteer.ratingCount : 0;
-      const currentRating = typeof volunteer.rating === 'number' ? volunteer.rating : 0;
-      const newCount = currentCount + 1;
+    // ── Update volunteer stats ──
+    if (reviewStatus === 'approved') {
+      const volunteer = await StudyVolunteer.findById(request.volunteer);
+      if (volunteer) {
+        const currentCount = typeof volunteer.ratingCount === 'number' ? volunteer.ratingCount : 0;
+        const currentRating = typeof volunteer.rating === 'number' ? volunteer.rating : 0;
+        const newCount = currentCount + 1;
+        volunteer.ratingCount = newCount;
+        volunteer.rating = ((currentRating * currentCount) + numRating) / newCount;
+        await volunteer.save();
+      }
+    }
 
-      const newAverage = ((currentRating * currentCount) + rating) / (newCount || 1);
-
-      volunteer.ratingCount = newCount;
-      volunteer.rating = newAverage;
-      await volunteer.save();
+    // ── Build moderation feedback ──
+    let moderationMessage = null;
+    if (reviewStatus === 'flagged') {
+      moderationMessage = 'Your review has been submitted for moderation. It will be visible after admin approval.';
+    } else if (reviewStatus === 'rejected') {
+      moderationMessage = 'Your review was automatically rejected due to policy violations. Please revise and resubmit.';
     }
 
     res.json({
       success: true,
       message: 'Review submitted successfully',
       data: request,
+      moderationStatus: reviewStatus,
+      moderationMessage,
     });
   } catch (error) {
     res.status(500).json({
@@ -545,6 +889,16 @@ exports.deleteRequest = async (req, res) => {
 
     if (!request) {
       return validationErrorResponse(res, 404, 'Request not found');
+    }
+
+    if (req.user.role !== 'Admin') {
+      const ownerId = await resolveStudentOwnerId(request);
+      if (ownerId && ownerId !== req.user._id.toString()) {
+        return validationErrorResponse(res, 403, 'You can only manage your own requests');
+      }
+      if (!ownerId && request.studentName && req.user.name && request.studentName !== req.user.name) {
+        return validationErrorResponse(res, 403, 'You can only manage your own requests');
+      }
     }
 
     if (!['pending', 'rejected'].includes(request.status)) {
@@ -565,6 +919,3 @@ exports.deleteRequest = async (req, res) => {
     });
   }
 };
-
-
-//Testing comment

@@ -1,0 +1,163 @@
+@layer components {
+  /* components/Navbar.css */
+
+  .navbar {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: rgba(10, 15, 30, 0.75);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+  }
+
+  .navbar-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 70px;
+    gap: 16px;
+  }
+
+  /* Brand */
+  .navbar-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-decoration: none;
+    flex-shrink: 0;
+  }
+  .navbar-brand:hover { text-decoration: none; }
+
+  .navbar-logo {
+    width: 36px;
+    height: 36px;
+    background: linear-gradient(135deg, #4f46e5, #8b5cf6);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 15px rgba(79, 70, 229, 0.3);
+    flex-shrink: 0;
+  }
+
+  .brand-name {
+    font-family: var(--font-head);
+    font-size: 19px;
+    font-weight: 800;
+    background: linear-gradient(to right, #ffffff, #a5b4fc);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Admin nav links */
+  .admin-nav-links {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    justify-content: center;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #94a3b8;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 8px 16px;
+    border-radius: 8px;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+  }
+
+  .nav-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: #e2e8f0;
+    text-decoration: none;
+  }
+
+  .nav-item.active {
+    background: rgba(79, 70, 229, 0.1);
+    color: #818cf8;
+    border-color: rgba(79, 70, 229, 0.2);
+    font-weight: 600;
+  }
+
+  /* Right side */
+  .navbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+
+  .user-profile-badge {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 4px 12px 4px 4px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 30px;
+    transition: background 0.2s;
+  }
+
+  .user-profile-badge:hover {
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .user-avatar {
+    width: 32px;
+    height: 32px;
+    background: rgba(79, 70, 229, 0.2);
+    color: #a5b4fc;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .user-info-text {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .user-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #f1f5f9;
+    line-height: 1.2;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .btn-logout {
+    background: rgba(239, 68, 68, 0.1);
+    color: #fca5a5;
+    border: 1px solid rgba(239, 68, 68, 0.2);
+  }
+
+  .btn-logout:hover {
+    background: rgba(239, 68, 68, 0.2);
+    color: #fef2f2;
+    border-color: rgba(239, 68, 68, 0.3);
+  }
+}
+
+@layer components {
+  /* Badges - overridden specifically for navbar if needed, but we can rely on index.css mostly */
+  .btn-sm { 
+    padding: 6px 14px; 
+    font-size: 13px; 
+    border-radius: 8px;
+  }
+}

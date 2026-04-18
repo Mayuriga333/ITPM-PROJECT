@@ -1,96 +1,108 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
-const volunteerSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  email: {
-    type: String,
-    required: true,
-    unique: true,
-    lowercase: true,
-    trim: true
-  },
-  password: {
-    type: String,
-    required: false
-  },
-  subjects: [{
-    type: String,
-    enum: [
-      'Java',
-      'Python',
-      'C++',
-      'C#',
-      'DSA',
-      'CS',
-      'OOP',
-      'MERN',
-      'Springboot',
-      '.NET',
-      'Statistics',
-      'Networking',
-      'Project Management',
+const volunteerSchema = new mongoose.Schema(
+  {
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      unique: true,
+    },
+    subjects: [
+      {
+        type: String,
+        required: true,
+        trim: true,
+      },
     ],
-    required: true
-  }],
-  rating: {
-    type: Number,
-    default: 0,
-    min: 0,
-    max: 5
+    experienceLevel: {
+      type: String,
+      enum: ["beginner", "intermediate", "advanced", "expert"],
+      default: "intermediate",
+    },
+    bio: {
+      type: String,
+      maxlength: 500,
+      default: "",
+    },
+    availability: {
+      monday: { from: String, to: String, available: { type: Boolean, default: false } },
+      tuesday: { from: String, to: String, available: { type: Boolean, default: false } },
+      wednesday: { from: String, to: String, available: { type: Boolean, default: false } },
+      thursday: { from: String, to: String, available: { type: Boolean, default: false } },
+      friday: { from: String, to: String, available: { type: Boolean, default: false } },
+      saturday: { from: String, to: String, available: { type: Boolean, default: false } },
+      sunday: { from: String, to: String, available: { type: Boolean, default: false } },
+    },
+    // Rating & Reputation
+    averageRating: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 5,
+    },
+    totalReviews: {
+      type: Number,
+      default: 0,
+    },
+    ratingBreakdown: {
+      five: { type: Number, default: 0 },
+      four: { type: Number, default: 0 },
+      three: { type: Number, default: 0 },
+      two: { type: Number, default: 0 },
+      one: { type: Number, default: 0 },
+    },
+    reputationScore: {
+      type: Number,
+      default: 50,
+      min: 0,
+      max: 100,
+    },
+    // Session stats
+    completedSessions: {
+      type: Number,
+      default: 0,
+    },
+    totalSessionsAssigned: {
+      type: Number,
+      default: 0,
+    },
+    responseRate: {
+      type: Number,
+      default: 100,
+      min: 0,
+      max: 100,
+    },
+    totalResponses: {
+      type: Number,
+      default: 0,
+    },
+    totalRequests: {
+      type: Number,
+      default: 0,
+    },
+    // Leaderboard badges
+    badges: [
+      {
+        type: String,
+        enum: ["top_rated", "most_active", "rising_star"],
+      },
+    ],
+    isApproved: {
+      type: Boolean,
+      default: true,
+    },
   },
-  ratingCount: {
-    type: Number,
-    default: 0
-  },
-  totalSessions: {
-    type: Number,
-    default: 0
-  },
-  availability: {
-    type: String,
-    enum: ['Available Now', 'This Week', 'Any Time'],
-    default: 'Any Time'
-  },
-  bio: {
-    type: String,
-    maxlength: 500
-  },
-  dailySessionLimit: {
-    type: Number,
-    default: 3
-  },
-  todaysSessions: {
-    type: Number,
-    default: 0
-  },
-  lastSessionReset: {
-    type: Date,
-    default: Date.now
-  }
+  { timestamps: true }
+);
+
+// Virtual for session completion rate
+volunteerSchema.virtual("sessionCompletionRate").get(function () {
+  if (this.totalSessionsAssigned === 0) return 100;
+  return Math.round((this.completedSessions / this.totalSessionsAssigned) * 100);
 });
 
+volunteerSchema.set("toJSON", { virtuals: true });
+volunteerSchema.set("toObject", { virtuals: true });
 
-// Method to check if volunteer can accept more sessions today
-volunteerSchema.methods.canAcceptMoreSessions = function() {
-  const now = new Date();
-  const lastReset = this.lastSessionReset ? new Date(this.lastSessionReset) : new Date(0);
-
-  // Reset daily count if it's a new day
-  if (now.toDateString() !== lastReset.toDateString()) {
-    this.todaysSessions = 0;
-    this.lastSessionReset = now;
-  }
-
-  const todaysSessions = typeof this.todaysSessions === 'number' ? this.todaysSessions : 0;
-  const limit = typeof this.dailySessionLimit === 'number' ? this.dailySessionLimit : 0;
-
-  return todaysSessions < limit;
-};
-
-// Use singular model name to match refs like ref: 'Volunteer'
-// Avoid OverwriteModelError in dev/hot-reload by reusing existing model when present
-module.exports = mongoose.models.Volunteer || mongoose.model('Volunteer', volunteerSchema);
+module.exports = mongoose.model("Volunteer", volunteerSchema);

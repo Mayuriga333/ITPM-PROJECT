@@ -1,26 +1,18 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
 const {
-  registerVolunteer,
   getVolunteers,
   getVolunteerById,
-  getVolunteerRequests,
-  getVolunteerStats
-} = require('../controllers/volunteerController');
+  updateVolunteer,
+  getLeaderboard,
+  getMyVolunteerProfile,
+} = require("../controllers/volunteerController");
+const { protect } = require("../middleware/authMiddleware");
 
-// Volunteer registration
-router.post('/register', registerVolunteer);
-
-// Get all volunteers with filters
-router.get('/', getVolunteers);
-
-// Get volunteer by ID
-router.get('/:id', getVolunteerById);
-
-// Get volunteer's incoming requests
-router.get('/:id/requests', getVolunteerRequests);
-
-// Get volunteer dashboard stats
-router.get('/:id/stats', getVolunteerStats);
+router.get("/leaderboard", getLeaderboard);
+router.get("/me/profile", protect, getMyVolunteerProfile);
+router.get("/", getVolunteers);
+router.get("/:id", getVolunteerById);
+router.put("/:id", protect, updateVolunteer);
 
 module.exports = router;

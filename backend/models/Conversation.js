@@ -1,28 +1,81 @@
+/**
+ * models/Conversation.js — Conversation tracking between students and volunteers
+ *
+ * A conversation represents a matched student-volunteer pair that can exchange messages.
+ * Only approved students and volunteers can participate in conversations.
+ */
+
 const mongoose = require('mongoose');
 
-const { Schema } = mongoose;
-
-const conversationSchema = new Schema(
+const ConversationSchema = new mongoose.Schema(
   {
-    // Array of exactly two user ids (student + volunteer)
-    members: {
-      type: [Schema.Types.ObjectId],
+    // Student participant
+    studentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
       required: true,
-      validate: {
-        validator: (v) => Array.isArray(v) && v.length === 2,
-        message: 'Conversation.members must contain exactly 2 user IDs',
-      },
-      index: true,
     },
-
-    // Explicit fields to enforce uniqueness per student-volunteer pair
-    studentId: { type: Schema.Types.ObjectId, required: true, index: true },
-    volunteerId: { type: Schema.Types.ObjectId, required: true, index: true },
+    
+    // Volunteer participant
+    volunteerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
+    
+    // Original matching context (optional)
+    matchContext: {
+      subject: { type: String, default: '' },
+      topic: { type: String, default: '' },
+      preferredTime: { type: String, default: '' },
+    },
+    
+    // Conversation status
+    status: {
+      type: String,
+      enum: ['active', 'archived', 'blocked'],
+      default: 'active',
+    },
+    
+    // Last message preview for UI
+    lastMessage: {
+      content: { type: String, default: '' },
+      senderId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      timestamp: { type: Date, default: null },
+    },
+    
+    // Unread message counts
+    unreadCounts: {
+      student: { type: Number, default: 0 },
+      volunteer: { type: Number, default: 0 },
+    },
+    
+    // Who archived the conversation (if applicable)
+    archivedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
   },
   { timestamps: true }
 );
 
-// Ensure one unique conversation per student-volunteer pair
-conversationSchema.index({ studentId: 1, volunteerId: 1 }, { unique: true });
+// Ensure unique conversations between student-volunteer pairs
+ConversationSchema.index({ studentId: 1, volunteerId: 1 }, { unique: true });
+ConversationSchema.index({ studentId: 1, status: 1 });
+ConversationSchema.index({ volunteerId: 1, status: 1 });
+ConversationSchema.index({ updatedAt: -1 });
 
-module.exports = mongoose.models.Conversation || mongoose.model('Conversation', conversationSchema);
+// Virtual for getting the other participant
+ConversationSchema.virtual('otherParticipant', {
+  ref: 'User',
+  localField: 'volunteerId',
+  foreignField: '_id',
+  justOne: true,
+  match: function() {
+    // This would need to be handled in the query
+    return {};
+  }
+});
+
+module.exports = mongoose.model('Conversation', ConversationSchema);
