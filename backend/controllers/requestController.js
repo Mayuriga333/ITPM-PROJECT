@@ -2,12 +2,6 @@ const mongoose = require('mongoose');
 const SupportRequest = require('../models/SupportRequest');
 const StudyVolunteer = require('../models/StudyVolunteer');
 const StudyStudent = require('../models/StudyStudent');
-const User = require('../models/User');
-const {
-  createNotification,
-  resolveStudyStudentUserId,
-  resolveStudyVolunteerUserId,
-} = require('../utils/notificationService');
 
 const { detectInappropriateContent } = require('../middleware/reviewModeration');
 
@@ -42,88 +36,11 @@ const buildRequestDay = (date) => {
   return d;
 };
 
-const toIdString = (value) => {
-  if (!value) return null;
-  return value.toString();
-};
-
-const resolveStudentOwnerId = async (request) => {
-  if (request.requesterUser) {
-    return toIdString(request.requesterUser);
-  }
-
-  if (request.student) {
-    const student = await StudyStudent.findById(request.student).select('user email name');
-    if (student?.user) {
-      return toIdString(student.user);
-    }
-
-    if (student?.email) {
-      const user = await User.findOne({ email: student.email }).select('_id');
-      if (user) {
-        return toIdString(user._id);
-      }
-    }
-  }
-
-  return null;
-};
-
-const resolveVolunteerOwnerId = async (request) => {
-  if (request.volunteerUser) {
-    return toIdString(request.volunteerUser);
-  }
-
-  if (request.volunteer) {
-    const volunteer = await StudyVolunteer.findById(request.volunteer).select('user email name');
-    if (volunteer?.user) {
-      return toIdString(volunteer.user);
-    }
-
-    if (volunteer?.email) {
-      const user = await User.findOne({ email: volunteer.email }).select('_id');
-      if (user) {
-        return toIdString(user._id);
-      }
-    }
-  }
-
-  return null;
-};
-
-const resolveRequestStudentRecipientId = async (request) => {
-  if (request.requesterUser) {
-    return toIdString(request.requesterUser);
-  }
-
-  if (request.student) {
-    const student = await StudyStudent.findById(request.student).select('user email name');
-    const studentUserId = await resolveStudyStudentUserId(student);
-    if (studentUserId) {
-      return toIdString(studentUserId);
-    }
-  }
-
-  return null;
-};
-
-const sendRequestNotification = async ({ recipientUser, actorUser, request, type, title, message }) => {
-  try {
-    await createNotification({ recipientUser, actorUser, request, type, title, message });
-  } catch (error) {
-    console.warn('[notification]', error.message);
-  }
-};
-
 // Create a new support request
 exports.createRequest = async (req, res) => {
   try {
     const { studentId, studentName, volunteerId, subject, date, timeSlot, message } = req.body;
     console.log('[createRequest] body:', JSON.stringify({ studentName, volunteerId, subject, date, timeSlot }));
-
-    if (!req.user || req.user.role !== 'Student') {
-      return validationErrorResponse(res, 403, 'Only students can create support requests');
-    }
 
     let student = null;
 
@@ -137,8 +54,6 @@ exports.createRequest = async (req, res) => {
     if (!volunteer) {
       return validationErrorResponse(res, 404, 'Volunteer not found');
     }
-
-    const volunteerUserId = await resolveStudyVolunteerUserId(volunteer);
 
     if (!ALLOWED_SUBJECTS.includes(subject)) {
       return validationErrorResponse(res, 400, 'Invalid subject', [
@@ -199,8 +114,6 @@ exports.createRequest = async (req, res) => {
       ]);
     }
 
-    const requesterUserId = req.user._id;
-
     const duplicate = await SupportRequest.findOne({
       volunteer: volunteerId,
       student: student ? student._id : undefined,
@@ -232,10 +145,8 @@ exports.createRequest = async (req, res) => {
     const request = new SupportRequest({
       student: student ? student._id : undefined,
       studentName: resolvedStudentName,
-      requesterUser: requesterUserId,
       volunteer: volunteerId,
       volunteerName: volunteer.name,
-      volunteerUser: volunteerUserId,
       subject,
       date: requestDay,
       timeSlot,
@@ -244,17 +155,6 @@ exports.createRequest = async (req, res) => {
     });
     
     await request.save();
-
-    if (volunteerUserId) {
-      await sendRequestNotification({
-        recipientUser: volunteerUserId,
-        actorUser: requesterUserId,
-        request,
-        type: 'request_submitted',
-        title: 'New support request',
-        message: `${resolvedStudentName} requested help in ${subject} on ${requestDay.toLocaleDateString()} at ${timeSlot}.`,
-      });
-    }
     
     res.status(201).json({
       success: true,
@@ -278,16 +178,6 @@ exports.updateRequest = async (req, res) => {
     const request = await SupportRequest.findById(req.params.id).populate('volunteer');
     if (!request) {
       return validationErrorResponse(res, 404, 'Request not found');
-    }
-
-    if (req.user.role !== 'Admin') {
-      const ownerId = await resolveStudentOwnerId(request);
-      if (ownerId && ownerId !== req.user._id.toString()) {
-        return validationErrorResponse(res, 403, 'You can only manage your own requests');
-      }
-      if (!ownerId && request.studentName && req.user.name && request.studentName !== req.user.name) {
-        return validationErrorResponse(res, 403, 'You can only manage your own requests');
-      }
     }
 
     if (request.status !== 'pending') {
@@ -388,7 +278,6 @@ exports.updateRequest = async (req, res) => {
     if (studentName && typeof studentName === 'string') {
       request.studentName = studentName;
     }
-    request.requesterUser = req.user._id;
     request.subject = subject;
     request.date = requestDay;
     request.timeSlot = timeSlot;
@@ -422,23 +311,6 @@ exports.getRequestById = async (req, res) => {
     if (!request) {
       return validationErrorResponse(res, 404, 'Request not found');
     }
-
-    if (req.user.role !== 'Admin') {
-      const studentOwnerId = await resolveStudentOwnerId(request);
-      const volunteerOwnerId = await resolveVolunteerOwnerId(request);
-      const currentUserId = req.user._id.toString();
-
-      const studentMatches = studentOwnerId
-        ? studentOwnerId === currentUserId
-        : request.studentName && req.user.name && request.studentName === req.user.name;
-      const volunteerMatches = volunteerOwnerId
-        ? volunteerOwnerId === currentUserId
-        : request.volunteerName && req.user.name && request.volunteerName === req.user.name;
-
-      if (!studentMatches && !volunteerMatches) {
-        return validationErrorResponse(res, 403, 'You can only view requests assigned to you');
-      }
-    }
     
     res.json({
       success: true,
@@ -461,16 +333,6 @@ exports.acceptRequest = async (req, res) => {
     
     if (!request) {
       return validationErrorResponse(res, 404, 'Request not found');
-    }
-
-    if (req.user.role !== 'Admin') {
-      const ownerId = await resolveVolunteerOwnerId(request);
-      if (ownerId && ownerId !== req.user._id.toString()) {
-        return validationErrorResponse(res, 403, 'You can only manage requests assigned to you');
-      }
-      if (!ownerId && request.volunteerName && req.user.name && request.volunteerName !== req.user.name) {
-        return validationErrorResponse(res, 403, 'You can only manage requests assigned to you');
-      }
     }
     
     if (request.status !== 'pending') {
@@ -508,18 +370,6 @@ exports.acceptRequest = async (req, res) => {
     volunteer.todaysSessions += 1;
     volunteer.totalSessions += 1;
     await volunteer.save();
-
-    const studentUserId = await resolveRequestStudentRecipientId(request);
-    if (studentUserId) {
-      await sendRequestNotification({
-        recipientUser: studentUserId,
-        actorUser: req.user._id,
-        request,
-        type: 'request_accepted',
-        title: 'Request accepted',
-        message: `Your request with ${request.volunteerName} for ${request.subject} on ${request.date.toLocaleDateString()} at ${request.timeSlot} was accepted.`,
-      });
-    }
     
     res.json({
       success: true,
@@ -544,16 +394,6 @@ exports.rejectRequest = async (req, res) => {
       return validationErrorResponse(res, 404, 'Request not found');
     }
 
-    if (req.user.role !== 'Admin') {
-      const ownerId = await resolveVolunteerOwnerId(request);
-      if (ownerId && ownerId !== req.user._id.toString()) {
-        return validationErrorResponse(res, 403, 'You can only manage requests assigned to you');
-      }
-      if (!ownerId && request.volunteerName && req.user.name && request.volunteerName !== req.user.name) {
-        return validationErrorResponse(res, 403, 'You can only manage requests assigned to you');
-      }
-    }
-
     if (request.status !== 'pending') {
       return validationErrorResponse(res, 400, 'Request is no longer pending');
     }
@@ -566,19 +406,6 @@ exports.rejectRequest = async (req, res) => {
     }
     
     await request.save();
-
-    const studentUserId = await resolveRequestStudentRecipientId(request);
-    if (studentUserId) {
-      const reasonText = rejectReason ? ` Reason: ${rejectReason}` : '';
-      await sendRequestNotification({
-        recipientUser: studentUserId,
-        actorUser: req.user._id,
-        request,
-        type: 'request_rejected',
-        title: 'Request rejected',
-        message: `Your request with ${request.volunteerName} for ${request.subject} on ${request.date.toLocaleDateString()} at ${request.timeSlot} was rejected.${reasonText}`,
-      });
-    }
 
     res.json({
       success: true,
@@ -601,16 +428,6 @@ exports.completeRequest = async (req, res) => {
     
     if (!request) {
       return validationErrorResponse(res, 404, 'Request not found');
-    }
-
-    if (req.user.role !== 'Admin') {
-      const ownerId = await resolveVolunteerOwnerId(request);
-      if (ownerId && ownerId !== req.user._id.toString()) {
-        return validationErrorResponse(res, 403, 'You can only manage requests assigned to you');
-      }
-      if (!ownerId && request.volunteerName && req.user.name && request.volunteerName !== req.user.name) {
-        return validationErrorResponse(res, 403, 'You can only manage requests assigned to you');
-      }
     }
     
     if (request.status !== 'accepted') {
@@ -642,6 +459,8 @@ exports.addReview = async (req, res) => {
     const VALID_TAGS = ['positive', 'neutral', 'needs_improvement'];
     const VALID_EXPERIENCE_TYPES = ['practice', 'review', 'new_learning'];
 
+    const VALID_VISIBILITY = ['public', 'private'];
+
     const {
       rating,
       reviewText,
@@ -652,7 +471,11 @@ exports.addReview = async (req, res) => {
       experienceType,
       recommendation,
       isAnonymous,
+      feedbackVisibility,
     } = req.body;
+
+    // ── Validate visibility ──
+    const normalizedVisibility = VALID_VISIBILITY.includes(feedbackVisibility) ? feedbackVisibility : 'public';
 
     // ── Validate rating ──
     const numRating = Number(rating);
@@ -779,16 +602,6 @@ exports.addReview = async (req, res) => {
     if (!request) {
       return validationErrorResponse(res, 404, 'Request not found');
     }
-
-    if (req.user.role !== 'Admin') {
-      const ownerId = await resolveStudentOwnerId(request);
-      if (ownerId && ownerId !== req.user._id.toString()) {
-        return validationErrorResponse(res, 403, 'You can only manage your own requests');
-      }
-      if (!ownerId && request.studentName && req.user.name && request.studentName !== req.user.name) {
-        return validationErrorResponse(res, 403, 'You can only manage your own requests');
-      }
-    }
     if (!['accepted', 'completed'].includes(request.status)) {
       return validationErrorResponse(res, 400, 'Only accepted or completed requests can be reviewed');
     }
@@ -826,6 +639,14 @@ exports.addReview = async (req, res) => {
         }
       : { fileName: '', fileUrl: '', mimeType: '', size: 0 };
 
+    // ── Compute goal alignment score ──
+    const tagScore = normalizedTags.includes('positive') ? 20
+      : normalizedTags.includes('neutral') ? 10 : 0;
+    const goalAlignmentScore = Math.min(
+      100,
+      Math.round((numRating / 5) * 60 + (normalizedFollowUp ? 20 : 0) + tagScore)
+    );
+
     // ── Save review on request ──
     request.rating = numRating;
     request.reviewText = normalizedReviewText;
@@ -837,6 +658,8 @@ exports.addReview = async (req, res) => {
     request.attachment = attachment;
     request.recommendation = normalizedRecommendation;
     request.isAnonymous = isAnonymous || false;
+    request.feedbackVisibility = normalizedVisibility;
+    request.goalAlignmentScore = goalAlignmentScore;
     request.moderationStatus = reviewStatus;
     request.flagReason = flagReason;
     request.moderationScore = moderationScore;
@@ -891,16 +714,6 @@ exports.deleteRequest = async (req, res) => {
       return validationErrorResponse(res, 404, 'Request not found');
     }
 
-    if (req.user.role !== 'Admin') {
-      const ownerId = await resolveStudentOwnerId(request);
-      if (ownerId && ownerId !== req.user._id.toString()) {
-        return validationErrorResponse(res, 403, 'You can only manage your own requests');
-      }
-      if (!ownerId && request.studentName && req.user.name && request.studentName !== req.user.name) {
-        return validationErrorResponse(res, 403, 'You can only manage your own requests');
-      }
-    }
-
     if (!['pending', 'rejected'].includes(request.status)) {
       return validationErrorResponse(res, 400, 'Only pending or rejected requests can be deleted');
     }
@@ -917,5 +730,47 @@ exports.deleteRequest = async (req, res) => {
       message: 'Internal server error',
       errors: [{ path: null, message: error.message }],
     });
+  }
+};
+
+// ─────────────────────────────────────────────────────────
+// Feedback History — all feedback a student has given
+// GET /api/requests/feedback-history?studentId=<id>
+// ─────────────────────────────────────────────────────────
+exports.getFeedbackHistory = async (req, res) => {
+  try {
+    const { studentId, studentName } = req.query;
+
+    // Build the same OR-query used by getStudentRequests so all matching
+    // requests are found regardless of whether the student ObjectId was saved.
+    let query;
+    if (studentId && mongoose.Types.ObjectId.isValid(studentId)) {
+      query = studentName
+        ? { $or: [{ student: studentId }, { studentName }] }
+        : { student: studentId };
+    } else if (studentName) {
+      query = { studentName };
+    } else {
+      return res.status(400).json({ success: false, message: 'Provide studentId or studentName' });
+    }
+
+    // Filter to requests that actually have a review
+    query.rating = { $gt: 0 };
+
+    const given = await SupportRequest.find(query)
+      .sort({ reviewCreatedAt: -1 })
+      .select(
+        'volunteerName subject rating reviewText reviewSubject feedbackTags ' +
+        'followUpMatchAgain experienceType reviewSessionDate recommendation ' +
+        'isAnonymous feedbackVisibility goalAlignmentScore moderationStatus reviewCreatedAt'
+      )
+      .lean();
+
+    res.json({
+      success: true,
+      data: { given },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   }
 };

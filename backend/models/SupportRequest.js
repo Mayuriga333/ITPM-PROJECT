@@ -10,11 +10,6 @@ const supportRequestSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  requesterUser: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    default: null
-  },
   volunteer: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'StudyVolunteer',
@@ -23,11 +18,6 @@ const supportRequestSchema = new mongoose.Schema({
   volunteerName: {
     type: String,
     required: true
-  },
-  volunteerUser: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    default: null
   },
   subject: {
     type: String,
@@ -111,6 +101,17 @@ const supportRequestSchema = new mongoose.Schema({
   isAnonymous: {
     type: Boolean,
     default: false
+  },
+  feedbackVisibility: {
+    type: String,
+    enum: ['public', 'private'],
+    default: 'public'
+  },
+  goalAlignmentScore: {
+    type: Number,
+    min: 0,
+    max: 100,
+    default: null
   },
   moderationStatus: {
     type: String,

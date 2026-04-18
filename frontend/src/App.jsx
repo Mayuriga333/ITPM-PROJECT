@@ -44,6 +44,7 @@ import StudyDiscoveryPage from './pages/study/DiscoveryPage';
 import StudyRequestPage from './pages/study/RequestPage';
 import StudyStudentDashboard from './pages/study/StudentDashboard';
 import StudyVolunteerDashboard from './pages/study/VolunteerDashboard';
+import StudyVolunteerProfilePage from './pages/study/VolunteerProfilePage';
 import './styles/theme.css';
 
 // ── Root redirect based on role / status ──
@@ -124,6 +125,7 @@ const AppRoutes = () => (
       <Route path="/study/request/:volunteerId" element={<ProtectedRoute allowedRole="Student"><StudyRequestPage /></ProtectedRoute>} />
       <Route path="/study/student-dashboard"   element={<ProtectedRoute allowedRole="Student"><StudyStudentDashboard /></ProtectedRoute>} />
       <Route path="/study/volunteer-dashboard" element={<ProtectedRoute allowedRole="Volunteer"><StudyVolunteerDashboard /></ProtectedRoute>} />
+      <Route path="/study/volunteer/:volunteerId" element={<StudyVolunteerProfilePage />} />
     </Route>
 
     {/* Catch-all */}

@@ -12,6 +12,7 @@ import { Textarea } from '../common/Textarea';
 import { Input, Label } from '../common/Input';
 import { useAuth } from '../../../context/AuthContext';
 import UserMenu from '../common/UserMenu';
+import FeedbackHistoryModal from './FeedbackHistoryModal';
 
 const StudentDashboard = () => {
   const { user } = useAuth();
@@ -31,8 +32,10 @@ const StudentDashboard = () => {
   const [attachment, setAttachment] = useState(null);
   const [recommendation, setRecommendation] = useState('');
   const [isAnonymous, setIsAnonymous] = useState(false);
+  const [feedbackVisibility, setFeedbackVisibility] = useState('public');
   const [submittingReview, setSubmittingReview] = useState(false);
   const [moderationFeedback, setModerationFeedback] = useState(null);
+  const [showFeedbackHistory, setShowFeedbackHistory] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [activeRequestForEdit, setActiveRequestForEdit] = useState(null);
   const [editStudentName, setEditStudentName] = useState('');
@@ -128,6 +131,7 @@ const StudentDashboard = () => {
     setAttachment(null);
     setRecommendation('');
     setIsAnonymous(false);
+    setFeedbackVisibility('public');
     setModerationFeedback(null);
     setShowReviewModal(true);
   };
@@ -146,6 +150,7 @@ const StudentDashboard = () => {
     setAttachment(null);
     setRecommendation('');
     setIsAnonymous(false);
+    setFeedbackVisibility('public');
     setModerationFeedback(null);
   };
 
@@ -200,6 +205,7 @@ const StudentDashboard = () => {
       formData.append('experienceType', experienceType);
       formData.append('recommendation', recommendation.trim());
       formData.append('isAnonymous', String(isAnonymous));
+      formData.append('feedbackVisibility', feedbackVisibility);
       if (attachment) formData.append('attachment', attachment);
 
       const { data } = await requestAPI.review(activeRequestForReview._id, formData);
@@ -369,6 +375,14 @@ const StudentDashboard = () => {
             >
               <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-white/10">📩</span>
               <span>Messages</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowFeedbackHistory(true)}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors text-slate-400 hover:bg-[#181D31] hover:text-indigo-300"
+            >
+              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-white/10">📋</span>
+              <span>Feedback History</span>
             </button>
           </nav>
         </aside>
@@ -636,6 +650,45 @@ const StudentDashboard = () => {
                   </label>
                 </div>
 
+                {/* Feedback Visibility */}
+                <div>
+                  <Label>Feedback Visibility *</Label>
+                  <div className="flex gap-3 mt-1">
+                    <label className={`flex items-center gap-2 cursor-pointer text-sm px-4 py-2.5 rounded-lg border transition-colors ${
+                      feedbackVisibility === 'public'
+                        ? 'bg-sky-500/20 border-sky-400/60 text-sky-300'
+                        : 'bg-white/5 border-white/10 text-slate-300 hover:border-indigo-400/50'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="feedbackVisibility"
+                        value="public"
+                        checked={feedbackVisibility === 'public'}
+                        onChange={() => setFeedbackVisibility('public')}
+                        className="accent-sky-500"
+                      />
+                      🌐 <span className="font-semibold">Public</span>
+                      <span className="text-xs opacity-70 ml-1">Visible on volunteer profile</span>
+                    </label>
+                    <label className={`flex items-center gap-2 cursor-pointer text-sm px-4 py-2.5 rounded-lg border transition-colors ${
+                      feedbackVisibility === 'private'
+                        ? 'bg-slate-500/20 border-slate-400/60 text-slate-200'
+                        : 'bg-white/5 border-white/10 text-slate-300 hover:border-indigo-400/50'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="feedbackVisibility"
+                        value="private"
+                        checked={feedbackVisibility === 'private'}
+                        onChange={() => setFeedbackVisibility('private')}
+                        className="accent-slate-400"
+                      />
+                      🔒 <span className="font-semibold">Private</span>
+                      <span className="text-xs opacity-70 ml-1">Only visible to you</span>
+                    </label>
+                  </div>
+                </div>
+
                 {/* Submit */}
                 <Button
                   type="submit"
@@ -664,7 +717,6 @@ const StudentDashboard = () => {
         </div>
       )}
 
-      {/* Edit Request Modal */}
       {showEditModal && activeRequestForEdit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
           <Card className="max-w-2xl w-full relative overflow-hidden" noPadding>
@@ -754,6 +806,15 @@ const StudentDashboard = () => {
             </div>
           </Card>
         </div>
+      )}
+
+      {/* Feedback History Modal */}
+      {showFeedbackHistory && (
+        <FeedbackHistoryModal
+          studentId={studentId}
+          studentName={studentName}
+          onClose={() => setShowFeedbackHistory(false)}
+        />
       )}
     </motion.div>
   );

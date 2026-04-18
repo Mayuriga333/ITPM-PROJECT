@@ -2,7 +2,6 @@ const express = require('express');
 const mongoose = require('mongoose');
 const router = express.Router();
 const { uploadReviewAttachment } = require('../middleware/upload');
-const { protect, authorizeRoles } = require('../middleware/authMiddleware');
 const {
   createRequest,
   getRequestById,
@@ -11,7 +10,8 @@ const {
   rejectRequest,
   completeRequest,
   addReview,
-  deleteRequest
+  deleteRequest,
+  getFeedbackHistory,
 } = require('../controllers/requestController');
 
 // Shared validation helpers
@@ -69,28 +69,31 @@ const validateCreateRequest = (req, res, next) => {
   next();
 };
 
+// Feedback history for a student
+router.get('/feedback-history', getFeedbackHistory);
+
 // Create new support request
-router.post('/', protect, authorizeRoles('Student'), validateCreateRequest, createRequest);
+router.post('/', validateCreateRequest, createRequest);
 
 // Get request by ID
-router.get('/:id', protect, validateRequestId, getRequestById);
+router.get('/:id', validateRequestId, getRequestById);
 
 // Update an existing support request (student action)
-router.put('/:id', protect, authorizeRoles('Student'), validateRequestId, updateRequest);
+router.put('/:id', validateRequestId, updateRequest);
 
 // Accept request (volunteer action)
-router.put('/:id/accept', protect, authorizeRoles('Volunteer'), validateRequestId, acceptRequest);
+router.put('/:id/accept', validateRequestId, acceptRequest);
 
 // Reject request (volunteer action)
-router.put('/:id/reject', protect, authorizeRoles('Volunteer'), validateRequestId, rejectRequest);
+router.put('/:id/reject', validateRequestId, rejectRequest);
 
 // Complete request
-router.put('/:id/complete', protect, authorizeRoles('Volunteer'), validateRequestId, completeRequest);
+router.put('/:id/complete', validateRequestId, completeRequest);
 
 // Add a review/rating for a request (student action, with optional file upload)
-router.post('/:id/review', protect, authorizeRoles('Student'), validateRequestId, uploadReviewAttachment.single('attachment'), addReview);
+router.post('/:id/review', validateRequestId, uploadReviewAttachment.single('attachment'), addReview);
 
 // Delete a support request (student action)
-router.delete('/:id', protect, authorizeRoles('Student'), validateRequestId, deleteRequest);
+router.delete('/:id', validateRequestId, deleteRequest);
 
 module.exports = router;

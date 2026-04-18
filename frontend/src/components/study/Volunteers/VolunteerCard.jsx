@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 
 const VolunteerCard = ({ volunteer }) => {
   const navigate = useNavigate();
-  const { _id, name, subjects, rating, totalSessions, match = 90 } = volunteer;
+  const { _id, name, subjects, rating, ratingCount = 0, totalSessions, match = 90 } = volunteer;
   // Generate initials from name (e.g. 'Kavindu Hewa' → 'KH')
   const initials = name
     ? name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
@@ -12,6 +12,10 @@ const VolunteerCard = ({ volunteer }) => {
 
   const handleRequestSupport = () => {
     navigate(`/study/request/${_id}`);
+  };
+
+  const handleViewProfile = () => {
+    navigate(`/study/volunteer/${_id}`);
   };
 
   return (
@@ -35,7 +39,7 @@ const VolunteerCard = ({ volunteer }) => {
       <div className="flex items-center justify-center gap-1.5 mt-2 mb-5">
         <Star className="w-3.5 h-3.5 text-[#fbbf24] fill-[#fbbf24]" />
         <span className="text-white text-xs font-bold">{rating.toFixed(1)}</span>
-        <span className="text-slate-500 text-[11px] font-medium">({totalSessions})</span>
+        <span className="text-slate-500 text-[11px] font-medium">({ratingCount} reviews)</span>
       </div>
 
       {/* 3. Subjects Mini-Pills */}
@@ -50,13 +54,21 @@ const VolunteerCard = ({ volunteer }) => {
         ))}
       </div>
 
-      {/* 4. Action Button - Lavender matched to image */}
-      <button
-        onClick={handleRequestSupport}
-        className="w-full bg-[#c4b5fd] hover:bg-[#a78bfa] text-[#1e1b4b] font-bold py-3.5 rounded-2xl transition-all shadow-[0_10px_20px_rgba(196,181,253,0.15)] hover:shadow-[0_10px_25px_rgba(167,139,250,0.3)] mt-auto"
-      >
-        Request Support
-      </button>
+      {/* 4. Action Buttons */}
+      <div className="w-full flex flex-col gap-2 mt-auto">
+        <button
+          onClick={handleViewProfile}
+          className="w-full bg-white/5 hover:bg-white/10 border border-white/10 hover:border-indigo-400/40 text-slate-300 hover:text-indigo-300 font-semibold py-2.5 rounded-2xl transition-all text-sm"
+        >
+          View Profile & Reviews
+        </button>
+        <button
+          onClick={handleRequestSupport}
+          className="w-full bg-[#c4b5fd] hover:bg-[#a78bfa] text-[#1e1b4b] font-bold py-3.5 rounded-2xl transition-all shadow-[0_10px_20px_rgba(196,181,253,0.15)] hover:shadow-[0_10px_25px_rgba(167,139,250,0.3)]"
+        >
+          Request Support
+        </button>
+      </div>
     </div>
   );
 };

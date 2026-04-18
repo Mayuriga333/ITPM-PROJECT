@@ -1,8 +1,96 @@
-import React from 'react';
-import { Calendar, Clock, BookOpen, Check, X, Star, Paperclip, MessageSquare, Tag, RotateCcw, FileText } from 'lucide-react';
+import React, { useState } from 'react';
+import { Calendar, Clock, BookOpen, Check, X, Star, Paperclip, MessageSquare, Tag, RotateCcw, FileText, Target, ChevronDown, ChevronUp } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import StarRating from '../common/StarRating';
+
+/**
+ * Computes goal alignment score client-side when not stored on the request.
+ */
+function computeGoalScore(rating, followUpMatchAgain, feedbackTags = []) {
+  const tagScore = feedbackTags.includes('positive') ? 20
+    : feedbackTags.includes('neutral') ? 10 : 0;
+  return Math.min(100, Math.round((rating / 5) * 60 + (followUpMatchAgain ? 20 : 0) + tagScore));
+}
+
+/**
+ * Inline expandable formula panel for goal alignment score.
+ */
+function GoalScoreWithFormula({ score, rating, followUpMatchAgain, feedbackTags = [] }) {
+  const [open, setOpen] = useState(false);
+  const color = score >= 80 ? 'emerald' : score >= 55 ? 'amber' : 'rose';
+
+  const ratingPts = Math.round((rating / 5) * 60);
+  const followUpPts = followUpMatchAgain ? 20 : 0;
+  const tagPts = feedbackTags.includes('positive') ? 20
+    : feedbackTags.includes('neutral') ? 10 : 0;
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <div className="flex items-center gap-1.5">
+        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold
+          bg-${color}-500/15 text-${color}-300 border border-${color}-500/30`}>
+          <Target className="h-3 w-3" />
+          {score}% goal matched
+        </span>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="inline-flex items-center gap-1 text-[11px] text-indigo-400 hover:text-indigo-300 transition-colors px-2 py-1 rounded-lg bg-indigo-500/10 border border-indigo-500/20 hover:bg-indigo-500/20"
+        >
+          How is this calculated?
+          {open ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+        </button>
+      </div>
+
+      {open && (
+        <div className="w-full bg-[#0d1117] border border-indigo-500/20 rounded-xl p-4 mt-1 space-y-3 text-xs">
+          <p className="text-indigo-300 font-semibold mb-2">Goal Alignment Formula</p>
+          {/* Rating row */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-slate-300">
+              <span className="w-5 h-5 rounded-full bg-yellow-500/20 text-yellow-400 flex items-center justify-center text-[10px] font-bold">★</span>
+              <span>Rating <span className="text-slate-500">({rating}/5 × 60)</span></span>
+            </div>
+            <span className="font-bold text-yellow-400">+{ratingPts} pts</span>
+          </div>
+          {/* Feedback quality row */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-slate-300">
+              <span className="w-5 h-5 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-[10px] font-bold">
+                <Tag className="h-2.5 w-2.5" />
+              </span>
+              <span>Feedback quality <span className="text-slate-500">(positive +20, neutral +10)</span></span>
+            </div>
+            <span className="font-bold text-indigo-400">+{tagPts} pts</span>
+          </div>
+          {/* Recommendation row */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-slate-300">
+              <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[10px] font-bold">
+                <RotateCcw className="h-2.5 w-2.5" />
+              </span>
+              <span>Recommendation <span className="text-slate-500">(match again: yes +20)</span></span>
+            </div>
+            <span className="font-bold text-emerald-400">+{followUpPts} pts</span>
+          </div>
+          {/* Divider + total */}
+          <div className="flex items-center justify-between pt-2 border-t border-white/10">
+            <span className="text-slate-400 font-semibold">Total Score</span>
+            <span className={`font-bold text-${color}-300 text-sm`}>{score} / 100</span>
+          </div>
+          {/* Progress bar */}
+          <div className="w-full bg-slate-700/50 rounded-full h-1.5">
+            <div
+              className={`h-1.5 rounded-full bg-${color}-400 transition-all duration-500`}
+              style={{ width: `${score}%` }}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const RequestCard = ({ request, type = 'student', onAccept, onReject, onReview, onEdit, onDelete }) => {
   const getStatusColor = () => {
@@ -111,9 +199,9 @@ const RequestCard = ({ request, type = 'student', onAccept, onReject, onReview, 
           {/* ── Submitted Review Details (ITPM-style) ── */}
           {typeof request.rating === 'number' && request.rating > 0 && (
             <div className="mt-4 bg-slate-900/60 border border-slate-700/60 rounded-xl p-5 space-y-3">
-              {/* Header row: stars + moderation badge + date */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
+              {/* Header row: stars + moderation badge + visibility + goal score + date */}
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <StarRating initialRating={request.rating} readOnly />
                   {request.moderationStatus && request.moderationStatus !== 'approved' && (
                     <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wide ${
@@ -126,7 +214,31 @@ const RequestCard = ({ request, type = 'student', onAccept, onReject, onReview, 
                       {request.moderationStatus === 'flagged' ? 'Under Review' : request.moderationStatus}
                     </span>
                   )}
+                  {/* Visibility badge */}
+                  {request.feedbackVisibility === 'private' ? (
+                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-600/40 text-slate-400 border border-slate-600/50">
+                      🔒 Private
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-sky-500/10 text-sky-300 border border-sky-500/30">
+                      🌐 Public
+                    </span>
+                  )}
                 </div>
+                {/* Goal alignment score with formula */}
+                {(() => {
+                  const score = request.goalAlignmentScore != null
+                    ? request.goalAlignmentScore
+                    : computeGoalScore(request.rating, request.followUpMatchAgain, request.feedbackTags);
+                  return (
+                    <GoalScoreWithFormula
+                      score={score}
+                      rating={request.rating}
+                      followUpMatchAgain={request.followUpMatchAgain}
+                      feedbackTags={request.feedbackTags}
+                    />
+                  );
+                })()}
                 {request.reviewCreatedAt && (
                   <span className="text-xs text-slate-500">
                     {format(new Date(request.reviewCreatedAt), 'MMM dd, yyyy')}

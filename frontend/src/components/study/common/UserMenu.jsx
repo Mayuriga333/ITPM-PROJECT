@@ -1,7 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
-import NotificationBell from '../../NotificationBell';
 
 const UserMenu = () => {
   const { user, logout } = useAuth();
@@ -26,7 +25,6 @@ const UserMenu = () => {
 
   return (
     <div className="flex items-center gap-3">
-      <NotificationBell />
       <button
         type="button"
         onClick={handleProfileClick}

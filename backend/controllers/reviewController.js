@@ -362,6 +362,7 @@ exports.getVolunteerReviews = async (req, res) => {
     const reviews = await Review.find({
       volunteer: req.params.volunteerId,
       status: "approved",
+      feedbackVisibility: "public",
     })
       .populate("student", "name")
       .sort({ createdAt: -1 })
@@ -371,6 +372,7 @@ exports.getVolunteerReviews = async (req, res) => {
     const total = await Review.countDocuments({
       volunteer: req.params.volunteerId,
       status: "approved",
+      feedbackVisibility: "public",
     });
 
     res.json({

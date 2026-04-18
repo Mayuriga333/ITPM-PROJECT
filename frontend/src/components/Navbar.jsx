@@ -15,7 +15,6 @@ import {
   Star,
   BookOpen
 } from 'lucide-react';
-import NotificationBell from './NotificationBell';
 import './Navbar.css';
 
 const ROLE_DASH = { Student: '/student', Volunteer: '/volunteer', Admin: '/admin' };
@@ -98,8 +97,6 @@ const Navbar = () => {
               </div>
               
               <div className="h-6 w-px bg-slate-700/50 mx-2"></div>
-
-              <NotificationBell className="mr-2" />
               
               <Link to="/profile" className="btn btn-outline btn-sm hover:bg-white/5 border-white/10 text-slate-300">
                 Profile
