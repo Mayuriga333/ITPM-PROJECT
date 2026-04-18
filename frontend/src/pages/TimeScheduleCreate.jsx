@@ -321,6 +321,44 @@ const TimeScheduleCreate = () => {
     return categories.find(cat => cat.value === category) || categories[0];
   };
 
+  const checkScheduleOverlap = (date, startTime, endTime, excludeScheduleId = null) => {
+    const existingSchedules = JSON.parse(localStorage.getItem('timeSchedules') || '[]');
+    const newStart = new Date(`${date}T${startTime}`);
+    const newEnd = new Date(`${date}T${endTime}`);
+    
+    return existingSchedules.some(schedule => {
+      // Skip the schedule being edited (if provided)
+      if (excludeScheduleId && schedule.id === excludeScheduleId) {
+        return false;
+      }
+      
+      // Only check schedules on the same date
+      if (schedule.date !== date) {
+        return false;
+      }
+      
+      // Skip cancelled schedules
+      if (schedule.status === 'cancelled') {
+        return false;
+      }
+      
+      const existingStart = new Date(`${schedule.date}T${schedule.startTime}`);
+      const existingEnd = new Date(`${schedule.date}T${schedule.endTime}`);
+      
+      // Check for overlap: schedules overlap if:
+      // 1. New schedule starts during an existing schedule
+      // 2. New schedule ends during an existing schedule
+      // 3. New schedule completely contains an existing schedule
+      // 4. New schedule is exactly the same as an existing schedule
+      
+      return (
+        (newStart >= existingStart && newStart < existingEnd) || // Starts during existing
+        (newEnd > existingStart && newEnd <= existingEnd) || // Ends during existing
+        (newStart <= existingStart && newEnd >= existingEnd) // Contains existing
+      );
+    });
+  };
+
   const validateDateTime = () => {
     const newErrors = {};
     const now = new Date();
@@ -354,6 +392,15 @@ const TimeScheduleCreate = () => {
       
       if (startTime >= endTime) {
         newErrors.endTime = 'End time must be after start time';
+      }
+      
+      // Check for schedule overlap
+      if (formData.date && !newErrors.endTime) {
+        const hasOverlap = checkScheduleOverlap(formData.date, formData.startTime, formData.endTime);
+        if (hasOverlap) {
+          newErrors.startTime = 'This time conflicts with an existing schedule';
+          newErrors.endTime = 'Please choose a different time slot';
+        }
       }
     }
     
@@ -423,7 +470,7 @@ const TimeScheduleCreate = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+    <div className="min-h-screen bg-gradient-to-br from-black via-blue-900 to-black">
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <motion.div
