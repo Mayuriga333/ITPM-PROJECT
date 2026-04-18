@@ -4,6 +4,7 @@
 
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import NotificationBell from './NotificationBell';
 import { 
   HeartHandshake, 
   LayoutDashboard, 
@@ -101,6 +102,7 @@ const Navbar = () => {
               <Link to="/profile" className="btn btn-outline btn-sm hover:bg-white/5 border-white/10 text-slate-300">
                 Profile
               </Link>
+              <NotificationBell />
               <button 
                 className="btn btn-logout btn-sm group" 
                 onClick={handleLogout}

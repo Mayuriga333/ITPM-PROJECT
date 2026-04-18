@@ -128,6 +128,7 @@ const RequestForm = ({ volunteer }) => {
                       <Label>Subject</Label>
                       <select 
                         className="input-field cursor-pointer"
+                        style={{ padding: '1px 20px' }}
                         value={selectedSubject} 
                         onChange={(e) => setSelectedSubject(e.target.value)}
                         required

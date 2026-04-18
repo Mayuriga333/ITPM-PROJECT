@@ -84,6 +84,14 @@ export const messageAPI = {
   getUnreadCount:    ()        => api.get('/messages/unread-count'),
 };
 
+export const notificationAPI = {
+  getAll:        (params) => api.get('/notifications', { params }),
+  getUnreadCount: ()      => api.get('/notifications/unread-count'),
+  markRead:      (id)     => api.patch(`/notifications/${id}/read`),
+  markAllRead:   ()       => api.patch('/notifications/read-all'),
+  delete:        (id)     => api.delete(`/notifications/${id}`),
+};
+
 // ══════════════════════════════════════════════════════════════════════════════
 //  P2 — Ratings, Reviews, Smart Matching (volunteers, reviews, sessions)
 // ══════════════════════════════════════════════════════════════════════════════
