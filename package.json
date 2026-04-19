@@ -1,0 +1,22 @@
+{
+  "name": "itpm-project",
+  "version": "1.0.0",
+  "description": "A comprehensive educational volunteer platform that connects students with volunteer tutors for study support, featuring intelligent matching, real-time communication, ratings and reviews, and administrative oversight.",
+  "main": "index.js",
+  "scripts": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mayuriga333/ITPM-PROJECT.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Mayuriga333/ITPM-PROJECT/issues"
+  },
+  "homepage": "https://github.com/Mayuriga333/ITPM-PROJECT#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "@types/node": "^25.6.0"
+  }
+}
