@@ -19,6 +19,7 @@ const StudentDashboard = () => {
   const [requests, setRequests] = useState({});
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [activeRequestFilter, setActiveRequestFilter] = useState('all');
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [activeRequestForReview, setActiveRequestForReview] = useState(null);
   const [reviewRating, setReviewRating] = useState(0);
@@ -316,6 +317,19 @@ const StudentDashboard = () => {
     ...(requests.completed || []),
   ];
 
+  const requestFilters = [
+    { key: 'all', label: 'All', count: submittedRequests.length },
+    { key: 'pending', label: 'Pending', count: requests.pending?.length || 0 },
+    { key: 'accepted', label: 'Accepted', count: requests.accepted?.length || 0 },
+    { key: 'rejected', label: 'Rejected', count: requests.rejected?.length || 0 },
+    { key: 'completed', label: 'Completed', count: requests.completed?.length || 0 },
+  ];
+
+  const filteredSubmittedRequests =
+    activeRequestFilter === 'all'
+      ? submittedRequests
+      : submittedRequests.filter((request) => request.status === activeRequestFilter);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -408,12 +422,32 @@ const StudentDashboard = () => {
           )}
 
           <div className="space-y-4 mt-4">
-            {submittedRequests.length === 0 ? (
+            <div className="flex flex-wrap items-center gap-3">
+              {requestFilters.map((filter) => (
+                <button
+                  key={filter.key}
+                  type="button"
+                  onClick={() => setActiveRequestFilter(filter.key)}
+                  className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+                    activeRequestFilter === filter.key
+                      ? 'bg-indigo-500 text-white'
+                      : 'bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white border border-white/10'
+                  }`}
+                >
+                  {filter.label}
+                  <span className="ml-2 text-xs text-white/70">{filter.count}</span>
+                </button>
+              ))}
+            </div>
+
+            {filteredSubmittedRequests.length === 0 ? (
               <div className="dark-card-container p-6 text-sm text-indigo-200">
-                You haven't submitted any requests yet.
+                {activeRequestFilter === 'all'
+                  ? "You haven't submitted any requests yet."
+                  : `No ${activeRequestFilter} requests yet.`}
               </div>
             ) : (
-              submittedRequests.map((req) => (
+              filteredSubmittedRequests.map((req) => (
                 <RequestCard
                   key={req._id}
                   request={req}

@@ -13,6 +13,7 @@ const Conversation = require('../models/Conversation');
 const Message = require('../models/Message');
 const User = require('../models/User');
 const VolunteerProfile = require('../models/VolunteerProfile');
+const { createNotification } = require('../utils/notificationService');
 
 /**
  * POST /api/messages/conversations
@@ -105,6 +106,7 @@ const sendMessage = async (req, res) => {
 
     // Update conversation's last message and unread counts
     const isStudentSender = conversation.studentId.toString() === senderId.toString();
+    const recipientId = isStudentSender ? conversation.volunteerId : conversation.studentId;
     await Conversation.findByIdAndUpdate(conversationId, {
       lastMessage: {
         content: content.trim(),
@@ -118,6 +120,19 @@ const sendMessage = async (req, res) => {
 
     // Populate message details for response
     await message.populate('senderId', 'name role');
+
+    const recipient = await User.findById(recipientId).select('_id name role');
+    if (recipient) {
+      const preview = content.trim().replace(/\s+/g, ' ').slice(0, 90);
+      await createNotification({
+        recipientUser: recipient._id,
+        actorUser: senderId,
+        request: null,
+        type: 'message_received',
+        title: `New message from ${req.user.name}`,
+        message: preview.length < content.trim().length ? `${req.user.name}: ${preview}...` : `${req.user.name}: ${preview}`,
+      });
+    }
 
     res.status(201).json({
       success: true,

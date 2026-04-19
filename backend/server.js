@@ -40,6 +40,7 @@ app.use('/api/volunteers', require('./routes/volunteerRoutes'));
 app.use('/api/reviews',    require('./routes/reviewRoutes'));
 app.use('/api/sessions',   require('./routes/sessionRoutes'));
 app.use('/api/matching',   require('./routes/matchingRoutes'));
+app.use('/api/notifications', require('./routes/notificationRoutes'));
 
 // ── Routes: Study Support Requests & Disputes (from P3) ──────────────────────
 app.use('/api/requests',        require('./routes/requestRoutes'));

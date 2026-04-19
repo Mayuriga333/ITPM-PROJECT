@@ -2,6 +2,27 @@ const mongoose = require('mongoose');
 const SupportRequest = require('../models/SupportRequest');
 const StudyVolunteer = require('../models/StudyVolunteer');
 const StudyStudent = require('../models/StudyStudent');
+const { createNotification, resolveStudyVolunteerUserId } = require('../utils/notificationService');
+
+const resolveStudentUserIdFromRequest = async (request) => {
+  if (!request) return null;
+
+  if (request.student) {
+    const studentProfile = await StudyStudent.findById(request.student).catch(() => null);
+    if (studentProfile && studentProfile.user) {
+      return studentProfile.user;
+    }
+  }
+
+  if (request.studentName) {
+    const studentProfile = await StudyStudent.findOne({ name: request.studentName }).select('user _id email').catch(() => null);
+    if (studentProfile && studentProfile.user) {
+      return studentProfile.user;
+    }
+  }
+
+  return null;
+};
 
 const { detectInappropriateContent } = require('../middleware/reviewModeration');
 
@@ -155,6 +176,22 @@ exports.createRequest = async (req, res) => {
     });
     
     await request.save();
+
+    const recipientUser = await resolveStudyVolunteerUserId(volunteer);
+    if (recipientUser) {
+      try {
+        await createNotification({
+          recipientUser,
+          actorUser: student && student.user ? student.user : null,
+          request: request._id,
+          type: 'request_submitted',
+          title: `New request from ${resolvedStudentName}`,
+          message: `${resolvedStudentName} requested ${subject} on ${requestDay.toLocaleDateString()} at ${timeSlot}.`,
+        });
+      } catch (notificationError) {
+        console.warn('[createRequest] notification failed:', notificationError.message);
+      }
+    }
     
     res.status(201).json({
       success: true,
@@ -366,6 +403,22 @@ exports.acceptRequest = async (req, res) => {
     
     request.status = 'accepted';
     await request.save();
+
+    const studentUserId = await resolveStudentUserIdFromRequest(request);
+    if (studentUserId) {
+      try {
+        await createNotification({
+          recipientUser: studentUserId,
+          actorUser: volunteer.user || null,
+          request: request._id,
+          type: 'request_accepted',
+          title: `Request accepted by ${volunteer.name}`,
+          message: `Your ${request.subject} request for ${new Date(request.date).toLocaleDateString()} at ${request.timeSlot} was accepted.`,
+        });
+      } catch (notificationError) {
+        console.warn('[acceptRequest] notification failed:', notificationError.message);
+      }
+    }
     
     volunteer.todaysSessions += 1;
     volunteer.totalSessions += 1;
@@ -399,6 +452,7 @@ exports.rejectRequest = async (req, res) => {
     }
 
     const { rejectReason } = req.body;
+    const volunteerProfile = await StudyVolunteer.findById(request.volunteer).catch(() => null);
 
     request.status = 'rejected';
     if (rejectReason) {
@@ -406,6 +460,24 @@ exports.rejectRequest = async (req, res) => {
     }
     
     await request.save();
+
+    const studentUserId = await resolveStudentUserIdFromRequest(request);
+    if (studentUserId) {
+      try {
+        await createNotification({
+          recipientUser: studentUserId,
+          actorUser: volunteerProfile?.user || req.user?._id || null,
+          request: request._id,
+          type: 'request_rejected',
+          title: `Request rejected for ${request.subject}`,
+          message: rejectReason
+            ? `Your ${request.subject} request for ${new Date(request.date).toLocaleDateString()} at ${request.timeSlot} was rejected: ${rejectReason}`
+            : `Your ${request.subject} request for ${new Date(request.date).toLocaleDateString()} at ${request.timeSlot} was rejected.`,
+        });
+      } catch (notificationError) {
+        console.warn('[rejectRequest] notification failed:', notificationError.message);
+      }
+    }
 
     res.json({
       success: true,
@@ -433,9 +505,27 @@ exports.completeRequest = async (req, res) => {
     if (request.status !== 'accepted') {
       return validationErrorResponse(res, 400, 'Only accepted requests can be completed');
     }
+
+    const volunteerProfile = await StudyVolunteer.findById(request.volunteer).catch(() => null);
     
     request.status = 'completed';
     await request.save();
+
+    const studentUserId = await resolveStudentUserIdFromRequest(request);
+    if (studentUserId) {
+      try {
+        await createNotification({
+          recipientUser: studentUserId,
+          actorUser: volunteerProfile?.user || req.user?._id || null,
+          request: request._id,
+          type: 'request_completed',
+          title: `Request completed for ${request.subject}`,
+          message: `Your ${request.subject} session on ${new Date(request.date).toLocaleDateString()} at ${request.timeSlot} has been marked completed.`,
+        });
+      } catch (notificationError) {
+        console.warn('[completeRequest] notification failed:', notificationError.message);
+      }
+    }
     
     res.json({
       success: true,
