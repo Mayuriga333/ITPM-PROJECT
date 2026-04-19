@@ -248,50 +248,113 @@ const TimeScheduleManage = () => {
   };
 
   // Volunteer Integration Functions
-  const loadVolunteers = () => {
-    // Mock volunteer data - in real app, this would be an API call
-    const mockVolunteers = [
-      {
-        id: 'v1',
-        name: 'Sarah Johnson',
-        email: 'sarah@example.com',
-        skills: ['Mathematics', 'Physics'],
-        availability: ['Morning', 'Afternoon'],
-        rating: 4.8,
-        experienceLevel: 3,
-        totalHours: 120,
-        completedSessions: 45,
-        status: 'active',
-        bio: 'Experienced tutor passionate about helping students succeed'
-      },
-      {
-        id: 'v2',
-        name: 'Michael Chen',
-        email: 'michael@example.com',
-        skills: ['Computer Science', 'Mathematics'],
-        availability: ['Evening', 'Weekend'],
-        rating: 4.6,
-        experienceLevel: 2,
-        totalHours: 85,
-        completedSessions: 32,
-        status: 'active',
-        bio: 'Computer science student with strong math background'
-      },
-      {
-        id: 'v3',
-        name: 'Emily Davis',
-        email: 'emily@example.com',
-        skills: ['English', 'History'],
-        availability: ['Weekday', 'Afternoon'],
-        rating: 4.9,
-        experienceLevel: 4,
-        totalHours: 200,
-        completedSessions: 78,
-        status: 'active',
-        bio: 'Professional educator with 10+ years of experience'
+  const loadVolunteers = async () => {
+    try {
+      console.log('Loading volunteers from /api/volunteers...');
+      const response = await fetch('/api/volunteers');
+      if (!response.ok) {
+        throw new Error('Failed to fetch volunteers');
       }
-    ];
-    setVolunteers(mockVolunteers);
+      
+      const volunteersData = await response.json();
+      console.log('Raw volunteers data from API:', volunteersData);
+      
+      // Transform backend volunteer data to match frontend format
+      const transformedVolunteers = volunteersData.map(volunteer => ({
+        id: volunteer._id,
+        name: volunteer.user?.name || 'Unknown',
+        email: volunteer.user?.email || 'unknown@example.com',
+        skills: volunteer.subjects || [],
+        availability: transformAvailability(volunteer.availability),
+        rating: volunteer.averageRating || 0,
+        experienceLevel: mapExperienceLevel(volunteer.experienceLevel),
+        totalHours: volunteer.completedSessions || 0, // Using sessions as hours approximation
+        completedSessions: volunteer.completedSessions || 0,
+        status: volunteer.isApproved ? 'active' : 'inactive',
+        bio: volunteer.bio || 'No bio available',
+        reputationScore: volunteer.reputationScore || 50,
+        totalReviews: volunteer.totalReviews || 0
+      }));
+      
+      // Show volunteers in natural order without any sorting
+      console.log('Volunteers loaded (natural order):', transformedVolunteers);
+      setVolunteers(transformedVolunteers);
+    } catch (error) {
+      console.error('Error loading volunteers:', error);
+      toast.error('Failed to load volunteers from server');
+      
+      // Fallback to mock data if API fails
+      const fallbackVolunteers = [
+        {
+          id: 'v1',
+          name: 'Sarah Johnson',
+          email: 'sarah@example.com',
+          skills: ['Mathematics', 'Physics'],
+          availability: ['Morning', 'Afternoon'],
+          rating: 4.8,
+          experienceLevel: 3,
+          totalHours: 120,
+          completedSessions: 45,
+          status: 'active',
+          bio: 'Experienced tutor passionate about helping students succeed'
+        },
+        {
+          id: 'v2',
+          name: 'Michael Chen',
+          email: 'michael@example.com',
+          skills: ['Computer Science', 'Mathematics'],
+          availability: ['Evening', 'Weekend'],
+          rating: 4.6,
+          experienceLevel: 2,
+          totalHours: 85,
+          completedSessions: 32,
+          status: 'active',
+          bio: 'Computer science student with strong math background'
+        },
+        {
+          id: 'v3',
+          name: 'Emily Davis',
+          email: 'emily@example.com',
+          skills: ['English', 'History'],
+          availability: ['Weekday', 'Afternoon'],
+          rating: 4.9,
+          experienceLevel: 4,
+          totalHours: 200,
+          completedSessions: 78,
+          status: 'active',
+          bio: 'Professional educator with 10+ years of experience'
+        }
+      ];
+      console.log('Using fallback volunteers (natural order):', fallbackVolunteers);
+      setVolunteers(fallbackVolunteers);
+    }
+  };
+
+  // Helper function to transform backend availability format to frontend format
+  const transformAvailability = (availability) => {
+    if (!availability) return ['Flexible'];
+    
+    const availableDays = [];
+    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+    
+    days.forEach(day => {
+      if (availability[day]?.available) {
+        availableDays.push(day.charAt(0).toUpperCase() + day.slice(1));
+      }
+    });
+    
+    return availableDays.length > 0 ? availableDays : ['Flexible'];
+  };
+
+  // Helper function to map backend experience levels to frontend format
+  const mapExperienceLevel = (level) => {
+    const mapping = {
+      'beginner': 1,
+      'intermediate': 2,
+      'advanced': 3,
+      'expert': 4
+    };
+    return mapping[level] || 2;
   };
 
   const calculateVolunteerStats = () => {
@@ -447,6 +510,14 @@ const TimeScheduleManage = () => {
         startWithVideoMuted: false,
         subject: `${schedule.title} - ${volunteer.name}`,
         displayName: 'Student',
+        // Configure for split-screen layout
+        maxParticipants: 2,
+        // Force tile view for equal screen distribution
+        defaultLayout: 'tile',
+        // Disable dominant speaker to prevent layout changes
+        disableDominantSpeaker: true,
+        // Start with tile view
+        startWithTileView: true,
         toolbarButtons: [
           'microphone', 'camera', 'closedcaptions', 'desktop', 'fullscreen',
           'fodeviceselection', 'hangup', 'profile', 'info', 'chat', 'recording',
@@ -462,32 +533,13 @@ const TimeScheduleManage = () => {
         startScreenSharing: false,
         enableEmailInStats: false,
         enableAnalytics: false,
+        // Force tile view on start
+        startWithTileView: true,
+        // Disable automatic view switching
+        disableInitialGUM: false,
         p2p: {
           enabled: true
         }
-      },
-      interfaceConfigOverwrite: {
-        TOOLBAR_BUTTONS: [
-          'microphone', 'camera', 'closedcaptions', 'desktop', 'fullscreen',
-          'fodeviceselection', 'hangup', 'profile', 'chat', 'recording',
-          'livestreaming', 'etherpad', 'sharedvideo', 'settings', 'raisehand',
-          'videoquality', 'filmstrip', 'invite', 'feedback', 'stats', 'shortcuts',
-          'tileview', 'videobackgroundblur', 'download', 'help', 'mute-everyone'
-        ],
-        SETTINGS_SECTIONS: ['devices', 'language', 'profile', 'moderator'],
-        SHOW_CHROME_EXTENSION_BANNER: false,
-        SHOW_JITI_WATERMARK: false,
-        SHOW_WATERMARK_FOR_GUESTS: false,
-        DEFAULT_REMOTE_DISPLAY_NAME: 'Volunteer',
-        DEFAULT_LOCAL_DISPLAY_NAME: 'You',
-        TOOLBAR_ALWAYS_VISIBLE: true,
-        SHOW_POWERED_BY: false,
-        SHOW_PROMOTIONAL_CLOSE_PAGE: false,
-        RANDOM_AVATAR_URL_PREFIX: false,
-        FILM_STRIP_ONLY: false,
-        VERTICAL_FILMSTRIP: true,
-        SHOW_BRAND_WATERMARK: false,
-        SHOW_DEEP_LINKING_IMAGE: false
       },
       userInfo: {
         displayName: 'Student',
@@ -502,12 +554,25 @@ const TimeScheduleManage = () => {
     api.addEventListener('videoConferenceJoined', (payload) => {
       console.log('Meeting joined:', payload);
       toast.success('Meeting started!');
+      
+      // Force tile view for split-screen layout
+      setTimeout(() => {
+        api.executeCommand('toggleTileView');
+        // Ensure no large video to maintain equal tiles
+        api.setLargeVideoParticipant(null);
+      }, 2000);
     });
 
     api.addEventListener('participantJoined', (payload) => {
       console.log('Participant joined:', payload);
       setMeetingParticipants(prev => [...prev, payload.id]);
       toast.success(`${payload.displayName} joined the meeting`);
+      
+      // Re-enforce tile view for split-screen when participant joins
+      setTimeout(() => {
+        api.executeCommand('toggleTileView');
+        api.setLargeVideoParticipant(null);
+      }, 1000);
     });
 
     api.addEventListener('participantLeft', (payload) => {
@@ -532,6 +597,82 @@ const TimeScheduleManage = () => {
     api.addEventListener('readyToClose', () => {
       endMeeting();
     });
+
+    // Force 50/50 split-screen layout with CSS
+    const enforceSplitScreen = () => {
+      // Remove existing styles to prevent conflicts
+      const existingStyles = document.querySelectorAll('style[data-jitsi-split]');
+      existingStyles.forEach(style => style.remove());
+      
+      const style = document.createElement('style');
+      style.setAttribute('data-jitsi-split', 'true');
+      style.textContent = `
+        #jitsi-meeting-container {
+          display: grid !important;
+          grid-template-columns: 1fr 1fr !important;
+          height: 100vh !important;
+          width: 100vw !important;
+          position: fixed !important;
+          top: 80px !important;
+          left: 0 !important;
+          right: 0 !important;
+          bottom: 0 !important;
+          z-index: 1000 !important;
+        }
+        #jitsi-meeting-container > div {
+          display: grid !important;
+          grid-template-columns: 1fr 1fr !important;
+          height: 100% !important;
+          width: 100% !important;
+          position: relative !important;
+        }
+        #jitsi-meeting-container .videocontainer {
+          display: grid !important;
+          grid-template-columns: 1fr 1fr !important;
+          height: 100% !important;
+          width: 100% !important;
+          position: relative !important;
+        }
+        #jitsi-meeting-container .filmstrip,
+        #jitsi-meeting-container .large-video-container,
+        #jitsi-meeting-container .dominant-speaker {
+          display: none !important;
+          visibility: hidden !important;
+        }
+        #jitsi-meeting-container .tile-view {
+          display: grid !important;
+          grid-template-columns: 1fr 1fr !important;
+          height: 100% !important;
+          width: 100% !important;
+          gap: 0 !important;
+          position: relative !important;
+        }
+        #jitsi-meeting-container .video-tile,
+        #jitsi-meeting-container .participant-video-container,
+        #jitsi-meeting-container .video-container {
+          width: 100% !important;
+          height: 100% !important;
+          object-fit: cover !important;
+          position: relative !important;
+          grid-column: span 1 !important;
+        }
+        #jitsi-meeting-container div[style*="position: absolute"],
+        #jitsi-meeting-container div[style*="position:absolute"] {
+          position: relative !important;
+          display: grid !important;
+          grid-template-columns: 1fr 1fr !important;
+        }
+        #jitsi-meeting-container iframe {
+          width: 100% !important;
+          height: 100% !important;
+        }
+      `;
+      document.head.appendChild(style);
+    };
+
+    // Apply split-screen layout immediately and periodically
+    enforceSplitScreen();
+    setInterval(enforceSplitScreen, 2000);
 
     // Save meeting info to localStorage
     const meetingInfo = {
@@ -618,6 +759,12 @@ const TimeScheduleManage = () => {
   useEffect(() => {
     loadSchedules();
     loadVolunteers();
+    
+    // Check for completed schedules immediately on mount
+    setTimeout(() => {
+      console.log('🚀 Initial cleanup check on component mount...');
+      cleanupCompletedSchedules();
+    }, 1000); // Wait 1 second after mount
   }, []);
 
   useEffect(() => {
@@ -640,12 +787,64 @@ const TimeScheduleManage = () => {
     return () => clearInterval(interval);
   }, [schedules]);
 
+  const cleanupCompletedSchedules = () => {
+    console.log('🧹 Starting cleanup of completed schedules...');
+    
+    const allSchedules = JSON.parse(localStorage.getItem('timeSchedules') || '[]');
+    console.log('📋 All schedules from localStorage:', allSchedules);
+    
+    const completedSchedules = allSchedules.filter(schedule => schedule.status === 'completed');
+    console.log('✅ Found completed schedules:', completedSchedules);
+    
+    if (completedSchedules.length > 0) {
+      console.log(`🗑️  Removing ${completedSchedules.length} completed schedules...`);
+      
+      // Remove completed schedules
+      const activeSchedules = allSchedules.filter(schedule => schedule.status !== 'completed');
+      console.log('📝 Active schedules after cleanup:', activeSchedules);
+      
+      localStorage.setItem('timeSchedules', JSON.stringify(activeSchedules));
+      console.log('💾 Updated localStorage with active schedules');
+      
+      // Also clean up any related volunteer assignments
+      const assignments = JSON.parse(localStorage.getItem('volunteerAssignments') || '[]');
+      console.log('👥 Current volunteer assignments:', assignments);
+      
+      const activeAssignments = assignments.filter(assignment => 
+        !completedSchedules.some(schedule => schedule.id === assignment.scheduleId)
+      );
+      console.log('👥 Active assignments after cleanup:', activeAssignments);
+      
+      localStorage.setItem('volunteerAssignments', JSON.stringify(activeAssignments));
+      
+      // Update state
+      setSchedules(activeSchedules);
+      setVolunteerAssignments(activeAssignments);
+      
+      // Show notification about cleanup
+      if (completedSchedules.length === 1) {
+        toast.success(`"${completedSchedules[0].title}" completed and removed`);
+      } else {
+        toast.success(`${completedSchedules.length} completed schedules removed`);
+      }
+      
+      console.log(`✨ Successfully cleaned up ${completedSchedules.length} completed schedules`);
+    } else {
+      console.log('ℹ️  No completed schedules to clean up');
+    }
+  };
+
   const checkUpcomingSchedules = () => {
+    console.log('⏰ Checking schedule statuses...');
     const now = new Date();
     const currentTime = now.getTime();
     let upcoming = [];
     let updatedSchedules = [...schedules];
     let hasChanges = false;
+    let newlyCompletedSchedules = [];
+
+    console.log(`📅 Current time: ${now.toISOString()}`);
+    console.log(`📋 Checking ${schedules.length} schedules`);
 
     updatedSchedules = updatedSchedules.map(schedule => {
       const scheduleDateTime = new Date(`${schedule.date}T${schedule.startTime}`);
@@ -654,22 +853,33 @@ const TimeScheduleManage = () => {
       
       let updatedSchedule = { ...schedule };
       
+      console.log(`🔍 Checking schedule "${schedule.title}":`);
+      console.log(`   Status: ${schedule.status}`);
+      console.log(`   Start: ${scheduleDateTime.toISOString()}`);
+      console.log(`   End: ${scheduleEndTime.toISOString()}`);
+      console.log(`   Current: ${now.toISOString()}`);
+      
       // Update status based on current time
       if (schedule.status === 'upcoming') {
         if (currentTime >= scheduleDateTime.getTime() && currentTime < scheduleEndTime.getTime()) {
           // Schedule is now ongoing
+          console.log(`🟢 Schedule "${schedule.title}" is now ONGOING`);
           updatedSchedule.status = 'ongoing';
           hasChanges = true;
         } else if (currentTime >= scheduleEndTime.getTime()) {
           // Schedule has ended
+          console.log(`✅ Schedule "${schedule.title}" is now COMPLETED`);
           updatedSchedule.status = 'completed';
           hasChanges = true;
+          newlyCompletedSchedules.push(updatedSchedule);
         }
       } else if (schedule.status === 'ongoing') {
         if (currentTime >= scheduleEndTime.getTime()) {
           // Schedule just ended
+          console.log(`✅ Schedule "${schedule.title}" is now COMPLETED (was ongoing)`);
           updatedSchedule.status = 'completed';
           hasChanges = true;
+          newlyCompletedSchedules.push(updatedSchedule);
         }
       }
       
@@ -694,8 +904,22 @@ const TimeScheduleManage = () => {
       setSchedules(updatedSchedules);
     }
 
+    console.log(`📊 Found ${newlyCompletedSchedules.length} newly completed schedules`);
+    
+    // If any schedules were newly completed, clean them up
+    if (newlyCompletedSchedules.length > 0) {
+      console.log(`⏰ Scheduling cleanup in 3 seconds for ${newlyCompletedSchedules.length} schedules...`);
+      // Delay cleanup to allow user to see completion notification
+      setTimeout(() => {
+        console.log('⏰ Triggering scheduled cleanup...');
+        cleanupCompletedSchedules();
+      }, 3000); // Wait 3 seconds before cleanup
+    }
+
     setUpcomingSchedules(upcoming);
     setNotificationCount(upcoming.length);
+    
+    console.log('✅ Schedule status check completed');
     
     // Show toast notifications
     if (upcoming.length > 0) {
@@ -1187,13 +1411,26 @@ const TimeScheduleManage = () => {
               </button>
             </div>
 
-            <button
-              onClick={() => navigate('/schedule/create')}
-              className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-lg transition-all transform hover:scale-105 flex items-center space-x-2"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Create New Schedule</span>
-            </button>
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={() => {
+                  console.log('🧹 Manual cleanup triggered by user');
+                  cleanupCompletedSchedules();
+                }}
+                className="px-4 py-3 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white rounded-lg transition-all transform hover:scale-105 flex items-center space-x-2"
+                title="Clean up completed schedules"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span className="hidden sm:inline">Cleanup</span>
+              </button>
+              <button
+                onClick={() => navigate('/schedule/create')}
+                className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-lg transition-all transform hover:scale-105 flex items-center space-x-2"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Create New Schedule</span>
+              </button>
+            </div>
           </div>
         </motion.div>
 
@@ -2144,64 +2381,38 @@ const TimeScheduleManage = () => {
                       transition={{ delay: index * 0.1 }}
                       className="p-4 bg-gradient-to-r from-green-500/10 to-blue-500/10 border border-green-500/30 rounded-lg"
                     >
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-start space-x-3">
-                          <div className="w-10 h-10 bg-green-500/20 rounded-full flex items-center justify-center">
-                            <UserCheck className="w-5 h-5 text-green-400" />
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-4">
+                          <div className="w-12 h-12 bg-blue-500/20 rounded-lg flex items-center justify-center">
+                            <UserCheck className="w-6 h-6 text-blue-400" />
                           </div>
                           <div className="flex-1">
-                            <h4 className="text-white font-semibold">{volunteer.name}</h4>
-                            <p className="text-gray-300 text-sm mt-1">{volunteer.bio}</p>
-                            <div className="flex items-center space-x-4 mt-3 text-sm">
-                              <div className="flex items-center text-gray-300">
-                                <Star className="w-4 h-4 mr-1 text-yellow-400" />
-                                {volunteer.rating}
-                              </div>
-                              <div className="flex items-center text-gray-300">
-                                <Clock3 className="w-4 h-4 mr-1 text-blue-400" />
-                                {volunteer.totalHours}h
-                              </div>
-                              <div className="flex items-center text-gray-300">
-                                <CalendarCheck className="w-4 h-4 mr-1 text-green-400" />
-                                {volunteer.completedSessions} sessions
-                              </div>
-                            </div>
-                            <div className="flex flex-wrap gap-2 mt-3">
-                              {volunteer.skills.map((skill, i) => (
+                            <h4 className="text-white font-medium text-lg">{volunteer.name}</h4>
+                            <p className="text-gray-400 text-sm mt-1">{volunteer.bio}</p>
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {volunteer.skills.slice(0, 3).map((skill, i) => (
                                 <span
                                   key={i}
-                                  className="px-2 py-1 bg-blue-500/20 text-blue-400 text-xs rounded-full"
+                                  className="px-2 py-1 bg-white/10 text-gray-300 text-xs rounded"
                                 >
                                   {skill}
                                 </span>
                               ))}
-                            </div>
-                            <div className="flex flex-wrap gap-2 mt-2">
-                              {volunteer.availability.map((avail, i) => (
-                                <span
-                                  key={i}
-                                  className="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded-full"
-                                >
-                                  {avail}
+                              {volunteer.skills.length > 3 && (
+                                <span className="px-2 py-1 bg-white/10 text-gray-400 text-xs rounded">
+                                  +{volunteer.skills.length - 3} more
                                 </span>
-                              ))}
+                              )}
                             </div>
                           </div>
                         </div>
-                        <div className="flex flex-col space-y-2">
+                        <div className="flex items-center space-x-2">
                           <button
                             onClick={() => assignVolunteerToSchedule(selectedVolunteer, volunteer)}
-                            className="px-4 py-2 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white rounded-lg transition-all flex items-center space-x-2"
+                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center space-x-2"
                           >
                             <UserPlus className="w-4 h-4" />
                             <span>Assign</span>
-                          </button>
-                          <button
-                            onClick={() => {/* Message volunteer */}}
-                            className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors flex items-center space-x-2"
-                          >
-                            <MessageSquare className="w-4 h-4" />
-                            <span>Message</span>
                           </button>
                         </div>
                       </div>
@@ -2403,11 +2614,11 @@ const TimeScheduleManage = () => {
 
         {/* Jitsi Meeting Modal */}
         {showMeetingModal && currentMeeting && (
-          <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="fixed inset-0 bg-black flex items-center justify-center z-50">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="w-full h-full max-w-7xl max-h-[95vh] bg-slate-900 rounded-xl overflow-hidden"
+              className="w-full h-full bg-slate-900 overflow-hidden"
             >
               {/* Meeting Header */}
               <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-4 flex items-center justify-between">
@@ -2473,6 +2684,57 @@ const TimeScheduleManage = () => {
                   </button>
                   
                   <button
+                    onClick={() => {
+                      if (jitsiApi) {
+                        // Force aggressive split-screen
+                        jitsiApi.executeCommand('toggleTileView');
+                        jitsiApi.setLargeVideoParticipant(null);
+                        
+                        // Apply immediate CSS override
+                        const container = document.getElementById('jitsi-meeting-container');
+                        if (container) {
+                          container.style.display = 'grid';
+                          container.style.gridTemplateColumns = '1fr 1fr';
+                          container.style.height = '100%';
+                          container.style.width = '100%';
+                        }
+                        
+                        // Re-enforce split-screen CSS
+                        enforceSplitScreen();
+                        toast.info('Forced 50/50 split-screen view');
+                      }
+                    }}
+                    className="p-2 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-colors"
+                    title="Force 50/50 split-screen view"
+                  >
+                    <Settings className="w-4 h-4" />
+                  </button>
+                  
+                  <button
+                    onClick={() => {
+                      const container = document.getElementById('jitsi-meeting-container');
+                      if (container) {
+                        if (!document.fullscreenElement) {
+                          container.requestFullscreen().then(() => {
+                            toast.info('Entered fullscreen mode');
+                          }).catch(err => {
+                            console.error('Fullscreen error:', err);
+                            toast.error('Could not enter fullscreen');
+                          });
+                        } else {
+                          document.exitFullscreen().then(() => {
+                            toast.info('Exited fullscreen mode');
+                          });
+                        }
+                      }
+                    }}
+                    className="p-2 bg-purple-500/20 text-purple-400 rounded-lg hover:bg-purple-500/30 transition-colors"
+                    title="Toggle fullscreen"
+                  >
+                    <Monitor className="w-4 h-4" />
+                  </button>
+                  
+                  <button
                     onClick={endMeeting}
                     className="p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
                     title="End meeting"
@@ -2483,11 +2745,16 @@ const TimeScheduleManage = () => {
               </div>
 
               {/* Jitsi Container */}
-              <div className="flex-1 relative bg-black">
+              <div className="flex-1 relative bg-black" style={{ height: 'calc(100vh - 80px)' }}>
                 <div
                   ref={jitsiContainerRef}
+                  id="jitsi-meeting-container"
                   className="w-full h-full"
-                  style={{ minHeight: '500px' }}
+                  style={{ 
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: '0'
+                  }}
                 />
                 
                 {/* Meeting Info Overlay */}
