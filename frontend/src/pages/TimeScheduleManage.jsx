@@ -510,7 +510,7 @@ const TimeScheduleManage = () => {
         startWithVideoMuted: false,
         subject: `${schedule.title} - ${volunteer.name}`,
         displayName: 'Student',
-        // Configure for split-screen layout
+        // Configure for 50/50 split-screen layout
         maxParticipants: 2,
         // Force tile view for equal screen distribution
         defaultLayout: 'tile',
@@ -518,6 +518,19 @@ const TimeScheduleManage = () => {
         disableDominantSpeaker: true,
         // Start with tile view
         startWithTileView: true,
+        // Disable filmstrip (side panel) to force main area split
+        filmStripOnly: false,
+        hideParticipantsStats: false,
+        // Force 2-column layout
+        responsiveTiles: false,
+        // Disable automatic speaker switching
+        disableRemoteMute: false,
+        // Force tile view settings
+        tileViewOptimizations: true,
+        // Disable automatic layout changes
+        disableTileEnlargement: true,
+        // Force equal tile sizes
+        equalVideoElementSizes: true,
         toolbarButtons: [
           'microphone', 'camera', 'closedcaptions', 'desktop', 'fullscreen',
           'fodeviceselection', 'hangup', 'profile', 'info', 'chat', 'recording',
@@ -537,8 +550,27 @@ const TimeScheduleManage = () => {
         startWithTileView: true,
         // Disable automatic view switching
         disableInitialGUM: false,
+        // Additional split-screen optimizations
+        channelLastN: 2,
+        enableLayerSuspension: false,
         p2p: {
           enabled: true
+        },
+        // Video quality settings for split-screen
+        resolution: 720,
+        constraints: {
+          video: {
+            height: {
+              ideal: 720,
+              max: 720,
+              min: 240
+            },
+            width: {
+              ideal: 1280,
+              max: 1280,
+              min: 320
+            }
+          }
         }
       },
       userInfo: {
@@ -555,12 +587,18 @@ const TimeScheduleManage = () => {
       console.log('Meeting joined:', payload);
       toast.success('Meeting started!');
       
-      // Force tile view for split-screen layout
+      // Force 50/50 split-screen layout immediately
       setTimeout(() => {
         api.executeCommand('toggleTileView');
-        // Ensure no large video to maintain equal tiles
         api.setLargeVideoParticipant(null);
-      }, 2000);
+        enforceSplitScreen();
+        
+        // Additional enforcement after Jitsi UI loads
+        setTimeout(() => {
+          enforceSplitScreen();
+          api.executeCommand('toggleTileView');
+        }, 3000);
+      }, 1000);
     });
 
     api.addEventListener('participantJoined', (payload) => {
@@ -568,11 +606,17 @@ const TimeScheduleManage = () => {
       setMeetingParticipants(prev => [...prev, payload.id]);
       toast.success(`${payload.displayName} joined the meeting`);
       
-      // Re-enforce tile view for split-screen when participant joins
+      // Aggressively enforce 50/50 split-screen when participant joins
       setTimeout(() => {
         api.executeCommand('toggleTileView');
         api.setLargeVideoParticipant(null);
-      }, 1000);
+        enforceSplitScreen();
+        
+        // Multiple enforcement attempts
+        setTimeout(enforceSplitScreen, 500);
+        setTimeout(enforceSplitScreen, 1500);
+        setTimeout(enforceSplitScreen, 3000);
+      }, 500);
     });
 
     api.addEventListener('participantLeft', (payload) => {
@@ -607,72 +651,145 @@ const TimeScheduleManage = () => {
       const style = document.createElement('style');
       style.setAttribute('data-jitsi-split', 'true');
       style.textContent = `
+        /* Main container - force 50/50 grid */
         #jitsi-meeting-container {
           display: grid !important;
           grid-template-columns: 1fr 1fr !important;
-          height: 100vh !important;
-          width: 100vw !important;
-          position: fixed !important;
-          top: 80px !important;
-          left: 0 !important;
-          right: 0 !important;
-          bottom: 0 !important;
-          z-index: 1000 !important;
-        }
-        #jitsi-meeting-container > div {
-          display: grid !important;
-          grid-template-columns: 1fr 1fr !important;
           height: 100% !important;
           width: 100% !important;
           position: relative !important;
+          overflow: hidden !important;
         }
-        #jitsi-meeting-container .videocontainer {
-          display: grid !important;
-          grid-template-columns: 1fr 1fr !important;
-          height: 100% !important;
+        
+        /* All direct children should be grid items */
+        #jitsi-meeting-container > * {
+          grid-column: span 1 !important;
           width: 100% !important;
+          height: 100% !important;
           position: relative !important;
         }
+        
+        /* Hide filmstrip and large video containers */
         #jitsi-meeting-container .filmstrip,
         #jitsi-meeting-container .large-video-container,
-        #jitsi-meeting-container .dominant-speaker {
+        #jitsi-meeting-container .dominant-speaker,
+        #jitsi-meeting-container .speaker-video-container {
           display: none !important;
           visibility: hidden !important;
+          position: absolute !important;
+          top: -9999px !important;
+          left: -9999px !important;
         }
+        
+        /* Force tile view layout */
         #jitsi-meeting-container .tile-view {
           display: grid !important;
           grid-template-columns: 1fr 1fr !important;
+          grid-template-rows: 1fr !important;
           height: 100% !important;
           width: 100% !important;
           gap: 0 !important;
           position: relative !important;
+          overflow: hidden !important;
         }
+        
+        /* Video tiles should be exactly 50% */
         #jitsi-meeting-container .video-tile,
         #jitsi-meeting-container .participant-video-container,
-        #jitsi-meeting-container .video-container {
+        #jitsi-meeting-container .video-container,
+        #jitsi-meeting-container .videocontainer {
           width: 100% !important;
           height: 100% !important;
           object-fit: cover !important;
           position: relative !important;
           grid-column: span 1 !important;
+          grid-row: span 1 !important;
+          overflow: hidden !important;
+          background: #000 !important;
         }
+        
+        /* Force video elements to fill containers */
+        #jitsi-meeting-container video,
+        #jitsi-meeting-container .video-tile video,
+        #jitsi-meeting-container .participant-video-container video {
+          width: 100% !important;
+          height: 100% !important;
+          object-fit: cover !important;
+          position: absolute !important;
+          top: 0 !important;
+          left: 0 !important;
+        }
+        
+        /* Override any absolute positioning */
         #jitsi-meeting-container div[style*="position: absolute"],
         #jitsi-meeting-container div[style*="position:absolute"] {
           position: relative !important;
           display: grid !important;
           grid-template-columns: 1fr 1fr !important;
+          grid-column: span 1 !important;
         }
+        
+        /* Iframe should fill container */
         #jitsi-meeting-container iframe {
           width: 100% !important;
           height: 100% !important;
+          position: absolute !important;
+          top: 0 !important;
+          left: 0 !important;
+        }
+        
+        /* Ensure only 2 participants are visible */
+        #jitsi-meeting-container .video-tile:nth-child(n+3),
+        #jitsi-meeting-container .participant-video-container:nth-child(n+3) {
+          display: none !important;
+        }
+        
+        /* Force equal sizing for all video elements */
+        #jitsi-meeting-container .video-tile:nth-child(1),
+        #jitsi-meeting-container .video-tile:nth-child(2),
+        #jitsi-meeting-container .participant-video-container:nth-child(1),
+        #jitsi-meeting-container .participant-video-container:nth-child(2) {
+          width: 50% !important;
+          height: 100% !important;
+          float: left !important;
+          display: block !important;
+        }
+        
+        /* Remove any flex layouts */
+        #jitsi-meeting-container [class*="flex"],
+        #jitsi-meeting-container [style*="display: flex"] {
+          display: grid !important;
+          grid-template-columns: 1fr 1fr !important;
         }
       `;
       document.head.appendChild(style);
+      
+      // Apply immediate styles to the container
+      const container = document.getElementById('jitsi-meeting-container');
+      if (container) {
+        container.style.display = 'grid';
+        container.style.gridTemplateColumns = '1fr 1fr';
+        container.style.height = '100%';
+        container.style.width = '100%';
+        container.style.position = 'relative';
+        container.style.overflow = 'hidden';
+      }
     };
 
     // Apply split-screen layout immediately and periodically
     enforceSplitScreen();
-    setInterval(enforceSplitScreen, 2000);
+    
+    // More aggressive periodic enforcement
+    const splitScreenInterval = setInterval(() => {
+      enforceSplitScreen();
+      if (jitsiApi) {
+        jitsiApi.executeCommand('toggleTileView');
+        jitsiApi.setLargeVideoParticipant(null);
+      }
+    }, 1500);
+    
+    // Store interval ID for cleanup
+    window.jitsiSplitScreenInterval = splitScreenInterval;
 
     // Save meeting info to localStorage
     const meetingInfo = {
@@ -725,6 +842,16 @@ const TimeScheduleManage = () => {
       jitsiApi.dispose();
       setJitsiApi(null);
     }
+    
+    // Clean up split-screen interval
+    if (window.jitsiSplitScreenInterval) {
+      clearInterval(window.jitsiSplitScreenInterval);
+      window.jitsiSplitScreenInterval = null;
+    }
+    
+    // Remove split-screen styles
+    const splitScreenStyles = document.querySelectorAll('style[data-jitsi-split]');
+    splitScreenStyles.forEach(style => style.remove());
     
     // Update meeting status in localStorage
     const meetings = JSON.parse(localStorage.getItem('activeMeetings') || '[]');
@@ -2686,22 +2813,56 @@ const TimeScheduleManage = () => {
                   <button
                     onClick={() => {
                       if (jitsiApi) {
-                        // Force aggressive split-screen
+                        // Ultra aggressive split-screen enforcement
                         jitsiApi.executeCommand('toggleTileView');
                         jitsiApi.setLargeVideoParticipant(null);
                         
                         // Apply immediate CSS override
                         const container = document.getElementById('jitsi-meeting-container');
                         if (container) {
-                          container.style.display = 'grid';
-                          container.style.gridTemplateColumns = '1fr 1fr';
-                          container.style.height = '100%';
-                          container.style.width = '100%';
+                          container.style.cssText = `
+                            display: grid !important;
+                            grid-template-columns: 1fr 1fr !important;
+                            height: 100% !important;
+                            width: 100% !important;
+                            position: relative !important;
+                            overflow: hidden !important;
+                          `;
                         }
                         
-                        // Re-enforce split-screen CSS
+                        // Force all iframes and videos to comply
+                        const iframes = container?.querySelectorAll('iframe') || [];
+                        const videos = container?.querySelectorAll('video') || [];
+                        
+                        iframes.forEach(iframe => {
+                          iframe.style.cssText = `
+                            width: 100% !important;
+                            height: 100% !important;
+                            position: absolute !important;
+                            top: 0 !important;
+                            left: 0 !important;
+                          `;
+                        });
+                        
+                        videos.forEach(video => {
+                          video.style.cssText = `
+                            width: 100% !important;
+                            height: 100% !important;
+                            object-fit: cover !important;
+                            position: absolute !important;
+                            top: 0 !important;
+                            left: 0 !important;
+                          `;
+                        });
+                        
+                        // Re-enforce split-screen CSS multiple times
                         enforceSplitScreen();
-                        toast.info('Forced 50/50 split-screen view');
+                        setTimeout(enforceSplitScreen, 100);
+                        setTimeout(enforceSplitScreen, 500);
+                        setTimeout(enforceSplitScreen, 1000);
+                        setTimeout(enforceSplitScreen, 2000);
+                        
+                        toast.success('🎯 50/50 split-screen view forced!');
                       }
                     }}
                     className="p-2 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-colors"
