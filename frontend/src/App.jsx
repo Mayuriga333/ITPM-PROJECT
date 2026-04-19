@@ -47,6 +47,10 @@ import StudyVolunteerDashboard from './pages/study/VolunteerDashboard';
 import StudyVolunteerProfilePage from './pages/study/VolunteerProfilePage';
 import './styles/theme.css';
 
+// ── Time Scheduling Pages ──
+import TimeScheduleCreate from './pages/TimeScheduleCreate';
+import TimeScheduleManage from './pages/TimeScheduleManage';
+
 // ── Root redirect based on role / status ──
 const RootRedirect = () => {
   const { user } = useAuth();
@@ -127,6 +131,10 @@ const AppRoutes = () => (
       <Route path="/study/volunteer-dashboard" element={<ProtectedRoute allowedRole="Volunteer"><StudyVolunteerDashboard /></ProtectedRoute>} />
       <Route path="/study/volunteer/:volunteerId" element={<StudyVolunteerProfilePage />} />
     </Route>
+
+    {/* ── Time Scheduling ── */}
+    <Route path="/schedule/create" element={<ProtectedRoute><TimeScheduleCreate /></ProtectedRoute>} />
+    <Route path="/schedule/manage" element={<ProtectedRoute><TimeScheduleManage /></ProtectedRoute>} />
 
     {/* Catch-all */}
     <Route path="*" element={<Navigate to="/" replace />} />
