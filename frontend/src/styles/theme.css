@@ -66,6 +66,22 @@
     @apply w-full h-[44px] px-4 bg-white/10 backdrop-blur-md rounded-xl border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300 shadow-inner;
   }
   
+  select.input-field {
+    @apply bg-gray-800 text-white border-white/30;
+    height: 52px;
+    font-size: 0.95rem;
+    color-scheme: dark;
+  }
+
+  select.input-field option {
+    background-color: #1f2937;
+    color: #f3f4f6;
+  }
+
+  select.input-field option:disabled {
+    color: #c4c8d4;
+  }
+
   .input-field option {
     background-color: #111827; /* dark grey dropdown */
     color: #e5e7eb; /* light text */
