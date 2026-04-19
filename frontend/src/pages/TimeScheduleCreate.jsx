@@ -76,63 +76,124 @@ const TimeScheduleCreate = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const loadVolunteers = () => {
-    // Mock volunteer data - in real app, this would be an API call
-    const mockVolunteers = [
-      {
-        id: 'v1',
-        name: 'Sarah Johnson',
-        email: 'sarah@example.com',
-        skills: ['Mathematics', 'Physics'],
-        availability: ['Morning', 'Afternoon'],
-        rating: 4.8,
-        experienceLevel: 3,
-        totalHours: 120,
-        completedSessions: 45,
-        status: 'active',
-        bio: 'Experienced tutor passionate about helping students succeed'
-      },
-      {
-        id: 'v2',
-        name: 'Michael Chen',
-        email: 'michael@example.com',
-        skills: ['Computer Science', 'Mathematics'],
-        availability: ['Evening', 'Weekend'],
-        rating: 4.6,
-        experienceLevel: 2,
-        totalHours: 85,
-        completedSessions: 32,
-        status: 'active',
-        bio: 'Computer science student with strong math background'
-      },
-      {
-        id: 'v3',
-        name: 'Emily Davis',
-        email: 'emily@example.com',
-        skills: ['English', 'History'],
-        availability: ['Weekday', 'Afternoon'],
-        rating: 4.9,
-        experienceLevel: 4,
-        totalHours: 200,
-        completedSessions: 78,
-        status: 'active',
-        bio: 'Professional educator with 10+ years of experience'
-      },
-      {
-        id: 'v4',
-        name: 'James Wilson',
-        email: 'james@example.com',
-        skills: ['Chemistry', 'Biology'],
-        availability: ['Morning', 'Weekday'],
-        rating: 4.5,
-        experienceLevel: 2,
-        totalHours: 95,
-        completedSessions: 38,
-        status: 'active',
-        bio: 'Science enthusiast with lab experience'
+  const loadVolunteers = async () => {
+    try {
+      const response = await fetch('/api/volunteers');
+      if (!response.ok) {
+        throw new Error('Failed to fetch volunteers');
       }
-    ];
-    setVolunteers(mockVolunteers);
+      
+      const volunteersData = await response.json();
+      
+      // Transform backend volunteer data to match frontend format
+      const transformedVolunteers = volunteersData.map(volunteer => ({
+        id: volunteer._id,
+        name: volunteer.user?.name || 'Unknown',
+        email: volunteer.user?.email || 'unknown@example.com',
+        skills: volunteer.subjects || [],
+        availability: transformAvailability(volunteer.availability),
+        rating: volunteer.averageRating || 0,
+        experienceLevel: mapExperienceLevel(volunteer.experienceLevel),
+        totalHours: volunteer.completedSessions || 0,
+        completedSessions: volunteer.completedSessions || 0,
+        status: volunteer.isApproved ? 'active' : 'inactive',
+        bio: volunteer.bio || 'No bio available',
+        reputationScore: volunteer.reputationScore || 50,
+        totalReviews: volunteer.totalReviews || 0
+      }));
+      
+      // Show volunteers in natural order without any sorting
+      console.log('Volunteers loaded (natural order):', transformedVolunteers);
+      setVolunteers(transformedVolunteers);
+    } catch (error) {
+      console.error('Error loading volunteers:', error);
+      toast.error('Failed to load volunteers from server');
+      
+      // Fallback to mock data if API fails
+      const fallbackVolunteers = [
+        {
+          id: 'v1',
+          name: 'Sarah Johnson',
+          email: 'sarah@example.com',
+          skills: ['Mathematics', 'Physics'],
+          availability: ['Morning', 'Afternoon'],
+          rating: 4.8,
+          experienceLevel: 3,
+          totalHours: 120,
+          completedSessions: 45,
+          status: 'active',
+          bio: 'Experienced tutor passionate about helping students succeed'
+        },
+        {
+          id: 'v2',
+          name: 'Michael Chen',
+          email: 'michael@example.com',
+          skills: ['Computer Science', 'Mathematics'],
+          availability: ['Evening', 'Weekend'],
+          rating: 4.6,
+          experienceLevel: 2,
+          totalHours: 85,
+          completedSessions: 32,
+          status: 'active',
+          bio: 'Computer science student with strong math background'
+        },
+        {
+          id: 'v3',
+          name: 'Emily Davis',
+          email: 'emily@example.com',
+          skills: ['English', 'History'],
+          availability: ['Weekday', 'Afternoon'],
+          rating: 4.9,
+          experienceLevel: 4,
+          totalHours: 200,
+          completedSessions: 78,
+          status: 'active',
+          bio: 'Professional educator with 10+ years of experience'
+        },
+        {
+          id: 'v4',
+          name: 'James Wilson',
+          email: 'james@example.com',
+          skills: ['Chemistry', 'Biology'],
+          availability: ['Morning', 'Weekday'],
+          rating: 4.5,
+          experienceLevel: 2,
+          totalHours: 95,
+          completedSessions: 38,
+          status: 'active',
+          bio: 'Science enthusiast with lab experience'
+        }
+      ];
+      console.log('Using fallback volunteers (natural order):', fallbackVolunteers);
+      setVolunteers(fallbackVolunteers);
+    }
+  };
+
+  // Helper function to transform backend availability format to frontend format
+  const transformAvailability = (availability) => {
+    if (!availability) return ['Flexible'];
+    
+    const availableDays = [];
+    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+    
+    days.forEach(day => {
+      if (availability[day]?.available) {
+        availableDays.push(day.charAt(0).toUpperCase() + day.slice(1));
+      }
+    });
+    
+    return availableDays.length > 0 ? availableDays : ['Flexible'];
+  };
+
+  // Helper function to map backend experience levels to frontend format
+  const mapExperienceLevel = (level) => {
+    const mapping = {
+      'beginner': 1,
+      'intermediate': 2,
+      'advanced': 3,
+      'expert': 4
+    };
+    return mapping[level] || 2;
   };
 
   const getAvailableVolunteers = () => {
@@ -217,6 +278,33 @@ const TimeScheduleCreate = () => {
     return uniqueSkills.sort();
   };
 
+  const cleanupCompletedSchedules = () => {
+    const allSchedules = JSON.parse(localStorage.getItem('timeSchedules') || '[]');
+    const completedSchedules = allSchedules.filter(schedule => schedule.status === 'completed');
+    
+    if (completedSchedules.length > 0) {
+      // Remove completed schedules
+      const activeSchedules = allSchedules.filter(schedule => schedule.status !== 'completed');
+      localStorage.setItem('timeSchedules', JSON.stringify(activeSchedules));
+      
+      // Also clean up any related volunteer assignments
+      const assignments = JSON.parse(localStorage.getItem('volunteerAssignments') || '[]');
+      const activeAssignments = assignments.filter(assignment => 
+        !completedSchedules.some(schedule => schedule.id === assignment.scheduleId)
+      );
+      localStorage.setItem('volunteerAssignments', JSON.stringify(activeAssignments));
+      
+      // Show notification about cleanup
+      if (completedSchedules.length === 1) {
+        toast.success(`"${completedSchedules[0].title}" completed and removed`);
+      } else {
+        toast.success(`${completedSchedules.length} completed schedules removed`);
+      }
+      
+      console.log(`Cleaned up ${completedSchedules.length} completed schedules`);
+    }
+  };
+
   const checkUpcomingSchedules = () => {
     const schedules = JSON.parse(localStorage.getItem('timeSchedules') || '[]');
     const now = new Date();
@@ -224,6 +312,7 @@ const TimeScheduleCreate = () => {
     let upcoming = [];
     let updatedSchedules = [...schedules];
     let hasChanges = false;
+    let newlyCompletedSchedules = [];
 
     updatedSchedules = updatedSchedules.map(schedule => {
       const scheduleDateTime = new Date(`${schedule.date}T${schedule.startTime}`);
@@ -241,12 +330,14 @@ const TimeScheduleCreate = () => {
           // Schedule has ended
           updatedSchedule.status = 'completed';
           hasChanges = true;
+          newlyCompletedSchedules.push(updatedSchedule);
         }
       } else if (schedule.status === 'ongoing') {
         if (currentTime >= scheduleEndTime.getTime()) {
           // Schedule just ended
           updatedSchedule.status = 'completed';
           hasChanges = true;
+          newlyCompletedSchedules.push(updatedSchedule);
         }
       }
       
@@ -268,6 +359,14 @@ const TimeScheduleCreate = () => {
     // Update schedules in localStorage if there are changes
     if (hasChanges) {
       localStorage.setItem('timeSchedules', JSON.stringify(updatedSchedules));
+    }
+
+    // If any schedules were newly completed, clean them up
+    if (newlyCompletedSchedules.length > 0) {
+      // Delay cleanup to allow user to see completion notification
+      setTimeout(() => {
+        cleanupCompletedSchedules();
+      }, 3000); // Wait 3 seconds before cleanup
     }
 
     setUpcomingSchedules(upcoming);

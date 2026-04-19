@@ -50,6 +50,7 @@ import './styles/theme.css';
 // ── Time Scheduling Pages ──
 import TimeScheduleCreate from './pages/TimeScheduleCreate';
 import TimeScheduleManage from './pages/TimeScheduleManage';
+import VolunteerRegistration from './pages/VolunteerRegistration';
 
 // ── Root redirect based on role / status ──
 const RootRedirect = () => {
@@ -88,6 +89,7 @@ const AppRoutes = () => (
     <Route path="/"         element={<RootRedirect />} />
     <Route path="/register" element={<RegisterPage />} />
     <Route path="/login"    element={<LoginPage />} />
+    <Route path="/volunteer-register" element={<VolunteerRegistration />} />
     <Route path="/pending"   element={<PendingPage />} />
     <Route path="/suspended" element={<SuspendedPage />} />
     <Route path="/rejected"  element={<RejectedPage />} />
@@ -142,19 +144,21 @@ const AppRoutes = () => (
 );
 
 const App = () => (
-  <BrowserRouter>
-    <AuthProvider>
-      <AppRoutes />
-      <ToastContainer position="bottom-right" autoClose={3000} />
-      <Toaster
-        position="top-right"
-        toastOptions={{
-          duration: 4000,
-          style: { background: '#363636', color: '#fff' },
-        }}
-      />
-    </AuthProvider>
-  </BrowserRouter>
+  <div className="w-full h-screen" style={{ background: 'var(--bg)' }}>
+    <BrowserRouter>
+      <AuthProvider>
+        <AppRoutes />
+        <ToastContainer position="bottom-right" autoClose={3000} />
+        <Toaster
+          position="top-right"
+          toastOptions={{
+            duration: 4000,
+            style: { background: '#363636', color: '#fff' },
+          }}
+        />
+      </AuthProvider>
+    </BrowserRouter>
+  </div>
 );
 
 export default App;
