@@ -299,7 +299,7 @@ npm start
 ### Development Team
 - **Tharusha (Member 1)** – Authentication, Profile Management, Chatbot & Smart Matching
 - **Mayuriga (Member 2)** – Volunteer Matching & Feedback System  
-- **Lavanya (Member 3)** – Study Request & Dispute Management
+- **Lavanya (Member 3)** – Study Request & Dispute Management, Messaging window and Notification
 - **Sheshanthan (Member 4)** – Scheduling & Attendance System 
 
 ## 🤝 Contributing
